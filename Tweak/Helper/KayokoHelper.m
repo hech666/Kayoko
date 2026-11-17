@@ -55,7 +55,7 @@ static void override_UIKeyboardAutocorrectionController_setAutocorrectionList(UI
  * @return The list of custom items.
  */
 static TIAutocorrectionList* createAutocorrectionList() {
-    NSArray* labels = @[@"History", @"Copy", @"Paste"];
+    NSArray* labels = @[@"历史记录", @"复制", @"粘贴"];
     NSMutableArray* candidates = [[NSMutableArray alloc] init];
     for (NSString* label in labels) {
         TIZephyrCandidate* candidate = [[objc_getClass("TIZephyrCandidate") alloc] init];
@@ -80,9 +80,9 @@ static TIAutocorrectionList* createAutocorrectionList() {
 static void (* orig_UIPredictionViewController_predictionView_didSelectCandidate)(UIPredictionViewController* self, SEL _cmd, TUIPredictionView* predictionView, TIZephyrCandidate* candidate);
 static void override_UIPredictionViewController_predictionView_didSelectCandidate(UIPredictionViewController* self, SEL _cmd, TUIPredictionView* predictionView, TIZephyrCandidate* candidate) {
     if ([candidate respondsToSelector:@selector(fromBundleId)] && [[candidate fromBundleId] isEqualToString:@"codes.aurora.kayoko"]) {
-        if ([[candidate label] isEqualToString:@"History"]) {
+        if ([[candidate label] isEqualToString:@"历史记录"]) {
             CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreShow, nil, nil, YES);
-        } else if ([[candidate label] isEqualToString:@"Copy"]) {
+        } else if ([[candidate label] isEqualToString:@"复制"]) {
             if (@available(iOS 15.0, *)) {
                 UIKBInputDelegateManager* delegateManager = [[objc_getClass("UIKeyboardImpl") activeInstance] inputDelegateManager];
                 UITextRange* range = [delegateManager selectedTextRange];
@@ -100,7 +100,7 @@ static void override_UIPredictionViewController_predictionView_didSelectCandidat
                     [[UIPasteboard generalPasteboard] setString:text];
                 }
             }
-        } else if ([[candidate label] isEqualToString:@"Paste"]) {
+        } else if ([[candidate label] isEqualToString:@"粘贴"]) {
             paste();
         }
     } else {
