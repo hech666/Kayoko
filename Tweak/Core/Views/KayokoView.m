@@ -29,6 +29,8 @@
         [[self layer] setShadowOffset:CGSizeZero];
         [[self layer] setShadowRadius:10];
         [[self layer] setShadowOpacity:0.5];
+        [[self layer] setCornerRadius:35];
+        [[self layer] setMaskedCorners:kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner];
 
         [self setBlurEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleRegular]];
         [self setBlurEffectView:[[UIVisualEffectView alloc] initWithEffect:[self blurEffect]]];
@@ -41,6 +43,10 @@
             [[[self blurEffectView] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor]],
             [[[self blurEffectView] bottomAnchor] constraintEqualToAnchor:[self bottomAnchor]]
         ]];
+
+        [[[self blurEffectView] layer] setCornerRadius:35];
+        [[[self blurEffectView] layer] setMaskedCorners:kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner];
+        [[[self blurEffectView] layer] setMasksToBounds:YES];
 
         [self setHeaderView:[[UIView alloc] init]];
         [self addSubview:[self headerView]];
