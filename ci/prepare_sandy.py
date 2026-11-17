@@ -10,7 +10,7 @@ if scheme == 'roothide':
     libdir = theos / 'lib'
 else:
     install_name = '@rpath/libsandy.dylib'
-    libdir = theos / 'lib/iphone/rootless'
+    libdir = theos / 'lib'
 libdir.mkdir(parents=True, exist_ok=True)
 (libdir / 'libsandy.tbd').write_text('''--- !tapi-tbd-v3
 archs: [ arm64, arm64e ]
