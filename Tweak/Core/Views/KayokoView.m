@@ -158,7 +158,7 @@
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     self.layer.shadowPath = outline.CGPath;
-    self.blurEffectView.layer.mask.path = outline.CGPath;
+    ((CAShapeLayer *)self.blurEffectView.layer.mask).path = outline.CGPath;
     [CATransaction commit];
 }
 
