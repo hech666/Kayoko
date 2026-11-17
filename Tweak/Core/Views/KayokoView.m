@@ -6,6 +6,7 @@
 //
 
 #import "KayokoView.h"
+#import "KayokoGeometry.h"
 #import <rootless.h>
 #import "KayokoHistoryTableView.h"
 #import "KayokoFavoritesTableView.h"
@@ -29,8 +30,7 @@
         [[self layer] setShadowOffset:CGSizeZero];
         [[self layer] setShadowRadius:10];
         [[self layer] setShadowOpacity:0.5];
-        [[self layer] setCornerRadius:35];
-        [[self layer] setMaskedCorners:kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner];
+        [[self layer] setMasksToBounds:NO];
 
         [self setBlurEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleRegular]];
         [self setBlurEffectView:[[UIVisualEffectView alloc] initWithEffect:[self blurEffect]]];
@@ -44,9 +44,10 @@
             [[[self blurEffectView] bottomAnchor] constraintEqualToAnchor:[self bottomAnchor]]
         ]];
 
-        [[[self blurEffectView] layer] setCornerRadius:35];
-        [[[self blurEffectView] layer] setMaskedCorners:kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner];
         [[[self blurEffectView] layer] setMasksToBounds:YES];
+        CAShapeLayer *blurMask = [CAShapeLayer layer];
+        blurMask.fillColor = UIColor.blackColor.CGColor;
+        [[self blurEffectView] layer].mask = blurMask;
 
         [self setHeaderView:[[UIView alloc] init]];
         [self addSubview:[self headerView]];
@@ -147,6 +148,18 @@
     }
 
     return self;
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    UIScreen *screen = self.window.screen ?: UIScreen.mainScreen;
+    CGFloat gap = CGRectGetWidth(screen.bounds) * 0.01;
+    UIBezierPath *outline = KayokoPanelPath(self.bounds, 35, KayokoBottomRadius(screen, gap));
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    self.layer.shadowPath = outline.CGPath;
+    self.blurEffectView.layer.mask.path = outline.CGPath;
+    [CATransaction commit];
 }
 
 /**
