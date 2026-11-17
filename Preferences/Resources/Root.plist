@@ -28,7 +28,7 @@
 			<key>key</key>
 			<string>Enabled</string>
 			<key>label</key>
-			<string>Enable Kayoko</string>
+			<string>启用 Kayoko</string>
             <key>PostNotification</key>
 			<string>codes.aurora.kayoko.preferences.reload</string>
 		</dict>
@@ -37,13 +37,13 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>History</string>
+			<string>历史记录</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSStaticTextCell</string>
 			<key>label</key>
-			<string>Maximum Amount</string>
+			<string>最大数量</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -77,7 +77,7 @@
 			<key>key</key>
 			<string>SaveText</string>
 			<key>label</key>
-			<string>Save Text</string>
+			<string>保存文本</string>
 			<key>PostNotification</key>
 			<string>codes.aurora.kayoko.preferences.reload</string>
 		</dict>
@@ -91,7 +91,7 @@
 			<key>key</key>
 			<string>SaveImages</string>
 			<key>label</key>
-			<string>Save Images</string>
+			<string>保存图片</string>
 			<key>PostNotification</key>
 			<string>codes.aurora.kayoko.preferences.reload</string>
 		</dict>
@@ -100,9 +100,9 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>Behavior</string>
+			<string>行为</string>
 			<key>footerText</key>
-			<string>The "Prediction Bar" method displays custom suggestions on the "More Keyboard Keyplane" (123).</string>
+			<string>「预测栏」方式会在键盘的「数字面板」（123）上显示自定义建议。</string>
 			<key>isStaticText</key>
 			<true />
 		</dict>
@@ -116,7 +116,7 @@
 			<key>defaults</key>
 			<string>codes.aurora.kayoko.preferences</string>
 			<key>label</key>
-			<string>Activation Method:</string>
+			<string>激活方式：</string>
 			<key>key</key>
 			<string>ActivationMethod</string>
 			<key>validValues</key>
@@ -126,8 +126,8 @@
 			</array>
 			<key>validTitles</key>
 			<array>
-				<string>Prediction Bar</string>
-				<string>Dictation Key</string>
+				<string>预测栏</string>
+				<string>听写键</string>
 			</array>
 		</dict>
 		<dict>
@@ -140,7 +140,7 @@
 			<key>key</key>
 			<string>AutomaticallyPaste</string>
 			<key>label</key>
-			<string>Automatically Paste</string>
+			<string>自动粘贴</string>
 			<key>PostNotification</key>
 			<string>codes.aurora.kayoko.preferences.reload</string>
 		</dict>
@@ -149,7 +149,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Try out your changes by typing, copying and pasting text.</string>
+			<string>输入、复制和粘贴文字来试用你的更改。</string>
 			<key>isStaticText</key>
 			<true />
 		</dict>
@@ -157,20 +157,20 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>placeholder</key>
-			<string>Wishing on a star...</string>
+			<string>许个愿吧...</string>
 		</dict>
 
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>Tools</string>
+			<string>工具</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSButtonCell</string>
 			<key>label</key>
-			<string>Respring</string>
+			<string>注销</string>
 			<key>action</key>
 			<string>respring</string>
 		</dict>
@@ -178,7 +178,7 @@
 			<key>cell</key>
 			<string>PSButtonCell</string>
 			<key>label</key>
-			<string>Reset Preferences</string>
+			<string>重置设置</string>
 			<key>action</key>
 			<string>resetPrompt</string>
 		</dict>
@@ -187,7 +187,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Thanks to you and everyone who has helped in any way.</string>
+			<string>感谢你以及每一位提供帮助的人。</string>
 			<key>isStaticText</key>
 			<true />
 		</dict>
@@ -195,7 +195,7 @@
  			<key>cell</key>
  			<string>PSLinkCell</string>
  			<key>label</key>
- 			<string>Credits</string>
+ 			<string>致谢</string>
  			<key>detail</key>
  			<string>KayokoCreditsListController</string>
  		</dict>
@@ -208,9 +208,9 @@
 			<key>cellClass</key>
 			<string>LinkCell</string>
 			<key>label</key>
-			<string>My Tweaks</string>
+			<string>我的插件</string>
 			<key>subtitle</key>
-			<string>Check out my other work.</string>
+			<string>查看我的其他作品。</string>
 			<key>url</key>
 			<string>https://akarii.cafe/user/AlexandraAurora</string>
 			<key>height</key>
@@ -220,9 +220,9 @@
 			<key>cellClass</key>
 			<string>LinkCell</string>
 			<key>label</key>
-			<string>Source Code</string>
+			<string>源代码</string>
 			<key>subtitle</key>
-			<string>Find it on my GitHub.</string>
+			<string>在我的 GitHub 上查看。</string>
 			<key>url</key>
 			<string>https://github.com/AlexandraAurora/Kayoko</string>
 			<key>height</key>
@@ -232,9 +232,9 @@
 			<key>cellClass</key>
 			<string>LinkCell</string>
 			<key>label</key>
-			<string>Donate</string>
+			<string>捐赠</string>
 			<key>subtitle</key>
-			<string>Let me know that you like what I do.</string>
+			<string>让我知道你喜欢我做的事情。</string>
 			<key>url</key>
 			<string>https://ko-fi.com/AlexandraAurora</string>
 			<key>height</key>
