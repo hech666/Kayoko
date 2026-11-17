@@ -2,7 +2,7 @@ Package: codes.aurora.kayoko
 Name: Kayoko
 Version: 2.0
 Architecture: iphoneos-arm
-Description: Clipboard manager for iOS.
+Description: iOS 剪贴板管理器。
 Maintainer: Alexandra Aurora Göttlicher
 Author: Alexandra Aurora Göttlicher
 Section: Tweaks
