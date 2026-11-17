@@ -58,13 +58,13 @@
  * Prompts the user to respring to apply changes.
  */
 - (void)promptToRespring {
-    UIAlertController* resetAlert = [UIAlertController alertControllerWithTitle:@"Kayoko" message:@"This option requires a respring to apply. Do you want to respring now?" preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertController* resetAlert = [UIAlertController alertControllerWithTitle:@"Kayoko" message:@"此选项需要注销才能生效。是否立即注销？" preferredStyle:UIAlertControllerStyleAlert];
 
-    UIAlertAction* yesAction = [UIAlertAction actionWithTitle:@"Yes" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * action) {
+    UIAlertAction* yesAction = [UIAlertAction actionWithTitle:@"是" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * action) {
         [self respring];
 	}];
 
-	UIAlertAction* noAction = [UIAlertAction actionWithTitle:@"No" style:UIAlertActionStyleCancel handler:nil];
+	UIAlertAction* noAction = [UIAlertAction actionWithTitle:@"否" style:UIAlertActionStyleCancel handler:nil];
 
 	[resetAlert addAction:yesAction];
 	[resetAlert addAction:noAction];
@@ -86,13 +86,13 @@
  * Prompts the user to reset their preferences.
  */
 - (void)resetPrompt {
-    UIAlertController* resetAlert = [UIAlertController alertControllerWithTitle:@"Kayoko" message:@"Are you sure you want to reset your preferences?" preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertController* resetAlert = [UIAlertController alertControllerWithTitle:@"Kayoko" message:@"确定要重置设置吗？" preferredStyle:UIAlertControllerStyleAlert];
 
-    UIAlertAction* yesAction = [UIAlertAction actionWithTitle:@"Yes" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * action) {
+    UIAlertAction* yesAction = [UIAlertAction actionWithTitle:@"是" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * action) {
         [self resetPreferences];
 	}];
 
-	UIAlertAction* noAction = [UIAlertAction actionWithTitle:@"No" style:UIAlertActionStyleCancel handler:nil];
+	UIAlertAction* noAction = [UIAlertAction actionWithTitle:@"否" style:UIAlertActionStyleCancel handler:nil];
 
 	[resetAlert addAction:yesAction];
 	[resetAlert addAction:noAction];
