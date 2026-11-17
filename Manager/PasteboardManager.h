@@ -10,8 +10,8 @@
 
 @class PasteboardItem;
 
-static NSString* const kHistoryPath = ROOT_PATH_NS(@"/var/mobile/Library/codes.aurora.kayoko/history.json");
-static NSString* const kHistoryImagesPath = ROOT_PATH_NS(@"/var/mobile/Library/codes.aurora.kayoko/images/");
+#define kHistoryPath ROOT_PATH_NS(@"/var/mobile/Library/codes.aurora.kayoko/history.json")
+#define kHistoryImagesPath ROOT_PATH_NS(@"/var/mobile/Library/codes.aurora.kayoko/images/")
 static NSString* const kHistoryKeyHistory = @"history";
 static NSString* const kHistoryKeyFavorites = @"favorites";
 
