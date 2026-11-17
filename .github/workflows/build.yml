@@ -58,6 +58,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cp -R "$(xcrun --sdk iphoneos --show-sdk-path)/usr/include/xpc" "$THEOS/include/"
           git clone --depth 1 https://github.com/opa334/libSandy.git "$RUNNER_TEMP/libSandy"
           cd "$RUNNER_TEMP/libSandy"
           make clean
