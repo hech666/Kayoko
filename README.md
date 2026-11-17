@@ -1,19 +1,19 @@
 # Kayoko
-Clipboard manager for iOS.
+iOS 剪贴板管理器。
 
-## Preview
-<img src="Preview.png" alt="Preview" />
+## 预览
+<img src="Preview.png" alt="预览" />
 
-## Installation
-1. Download the latest `deb` from the [releases](https://github.com/AlexandraAurora/Kayoko/releases)
-2. Install the `deb` using your preferred method
+## 安装
+1. 从 [releases](https://github.com/AlexandraAurora/Kayoko/releases) 下载最新的 `deb`
+2. 使用你喜欢的方式安装 `deb`
 
-## Compatibility
-iPhone, iPad (partially) and iPod touch running iOS/iPadOS 14-15.
+## 兼容性
+iPhone、iPad（部分支持）和 iPod touch，运行 iOS/iPadOS 14-15。
 
-## Compiling
-  - [Theos](https://theos.dev/) is required to compile the project
-  - Edit the root `Makefile` to use your Theos SDK
+## 编译
+  - 需要 [Theos](https://theos.dev/) 来编译项目
+  - 编辑根目录的 `Makefile` 以使用你的 Theos SDK
 
-## License
+## 许可证
 [GPL-3.0](https://github.com/AlexandraAurora/Kayoko/blob/main/COPYING)
