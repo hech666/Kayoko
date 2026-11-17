@@ -8,7 +8,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Direct and indirect Daemon assistance - uroboro and absidue</string>
+			<string>直接和间接的守护进程协助 - uroboro 和 absidue</string>
 			<key>isStaticText</key>
 			<true/>
 		</dict>
@@ -16,7 +16,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Bug fixes - Lessica</string>
+			<string>Bug 修复 - Lessica</string>
 			<key>isStaticText</key>
 			<true/>
 		</dict>
@@ -24,12 +24,12 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Testing - 0xilis, denial, flower and MrGcGamer</string>
+			<string>测试 - 0xilis, denial, flower 和 MrGcGamer</string>
 			<key>isStaticText</key>
 			<true/>
 		</dict>
 	</array>
 	<key>title</key>
-	<string>Credits</string>
+	<string>致谢</string>
 </dict>
 </plist>
