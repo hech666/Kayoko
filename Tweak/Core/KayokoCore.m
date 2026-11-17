@@ -30,7 +30,8 @@ static void override_UIStatusBarWindow_initWithFrame(UIStatusBarWindow* self, SE
         CGRect bounds = [[UIScreen mainScreen] bounds];
         CGFloat panelWidth = bounds.size.width * 0.98;
         CGFloat panelX = (bounds.size.width - panelWidth) / 2;
-        kayokoView = [[KayokoView alloc] initWithFrame:CGRectMake(panelX, bounds.size.height - kHeight, panelWidth, kHeight)];
+        CGFloat bottomMargin = bounds.size.width * 0.01;
+        kayokoView = [[KayokoView alloc] initWithFrame:CGRectMake(panelX, bounds.size.height - kHeight - bottomMargin, panelWidth, kHeight)];
         [kayokoView setAutomaticallyPaste:pfAutomaticallyPaste];
         [self addSubview:kayokoView];
     }
