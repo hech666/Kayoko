@@ -59,6 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           cp -R "$(xcrun --sdk iphoneos --show-sdk-path)/usr/include/xpc" "$THEOS/include/"
+          find "$THEOS/include/xpc" -name "*.h" -exec sed -i '' -E 's/__API_UNAVAILABLE\([^)]*\)//g; s/__API_DEPRECATED\([^)]*\)//g' {} +
           git clone --depth 1 https://github.com/opa334/libSandy.git "$RUNNER_TEMP/libSandy"
           cd "$RUNNER_TEMP/libSandy"
           make clean
