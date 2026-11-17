@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: kayoko-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-15
@@ -34,7 +38,7 @@ jobs:
       - name: Bump Package Version
         id: bump
         run: |
-          VERSION="2.0-${{ github.run_number }}"
+          VERSION="${{ github.run_number }}"
           sed -i '' "s/^Version: .*/Version: ${VERSION}/" control
           echo "package_version=${VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -54,19 +58,8 @@ jobs:
           git -C "$RUNNER_TEMP/theos-sdks" sparse-checkout set iPhoneOS16.5.sdk
           cp -a "$RUNNER_TEMP/theos-sdks/iPhoneOS16.5.sdk" "$THEOS/sdks/"
 
-      - name: Build and install libSandy
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp -R "$(xcrun --sdk iphoneos --show-sdk-path)/usr/include/xpc" "$THEOS/include/"
-          find "$THEOS/include/xpc" -name "*.h" -exec sed -i '' -E 's/__API_UNAVAILABLE\([^)]*\)//g; s/__API_DEPRECATED\([^)]*\)//g' {} +
-          git clone --depth 1 https://github.com/opa334/libSandy.git "$RUNNER_TEMP/libSandy"
-          cd "$RUNNER_TEMP/libSandy"
-          make clean
-          make FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless ONLY_LIBRARY=1
-          mkdir -p "$THEOS/lib/iphone/rootless"
-          cp -Rv "./.theos/obj/libsandy.dylib" "$THEOS/lib/iphone/rootless"
-          cp -v "./libSandy.h" "$THEOS/include"
+      - name: Prepare libSandy link interface
+        run: python3 ci/prepare_sandy.py
 
       - name: Build Package
         shell: bash
