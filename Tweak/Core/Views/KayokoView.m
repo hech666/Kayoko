@@ -26,6 +26,14 @@
     if (self) {
         [self hide];
 
+        // Full-screen transparent background for tap-to-dismiss
+        [self setBackgroundView:[[UIView alloc] init]];
+        [[self backgroundView] setBackgroundColor:[UIColor clearColor]];
+        [[self backgroundView] setTranslatesAutoresizingMaskIntoConstraints:NO];
+        UITapGestureRecognizer* bgTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(hide)];
+        [bgTap setCancelsTouchesInView:NO];
+        [[self backgroundView] addGestureRecognizer:bgTap];
+
         [[self layer] setShadowColor:[[UIColor blackColor] CGColor]];
         [[self layer] setShadowOffset:CGSizeZero];
         [[self layer] setShadowRadius:10];
@@ -375,6 +383,19 @@
         return;
     }
 
+    // Insert background view to cover the full window for tap-to-dismiss
+    UIView* sv = [self superview];
+    if (sv && ![[self backgroundView] superview]) {
+        [sv insertSubview:[self backgroundView] belowSubview:self];
+        [NSLayoutConstraint activateConstraints:@[
+            [[[self backgroundView] topAnchor] constraintEqualToAnchor:[sv topAnchor]],
+            [[[self backgroundView] leadingAnchor] constraintEqualToAnchor:[sv leadingAnchor]],
+            [[[self backgroundView] trailingAnchor] constraintEqualToAnchor:[sv trailingAnchor]],
+            [[[self backgroundView] bottomAnchor] constraintEqualToAnchor:[sv bottomAnchor]]
+        ]];
+    }
+    [[self backgroundView] setHidden:NO];
+
     [[self historyTableView] setAutomaticallyPaste:[self automaticallyPaste]];
     [[self favoritesTableView] setAutomaticallyPaste:[self automaticallyPaste]];
 
@@ -400,6 +421,8 @@
     if (_isAnimating) {
         return;
     }
+
+    [[self backgroundView] setHidden:YES];
 
     _isAnimating = YES;
     [UIView animateWithDuration:0.2 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:UIViewAnimationOptionCurveEaseOut animations:^{

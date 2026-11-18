@@ -36,6 +36,7 @@ static NSUInteger const kClearButtonImageSize = 20;
 @property(nonatomic)KayokoFavoritesTableView* favoritesTableView;
 @property(nonatomic)KayokoPreviewView* previewView;
 @property(nonatomic)UIImpactFeedbackGenerator* feedbackGenerator;
+@property(nonatomic)UIView* backgroundView;
 @property(nonatomic, assign)BOOL automaticallyPaste;
 - (void)showPreviewWithItem:(PasteboardItem *)item;
 - (void)show;

@@ -12,7 +12,7 @@
 			<key>cellClass</key>
 			<string>SingleContactCell</string>
 			<key>displayName</key>
-			<string>Alexandra</string>
+			<string>Alexandra haoge 二改</string>
 			<key>username</key>
 			<string>AlexandraAurora</string>
 			<key>height</key>
@@ -183,63 +183,6 @@
 			<string>resetPrompt</string>
 		</dict>
 
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>footerText</key>
-			<string>感谢你以及每一位提供帮助的人。</string>
-			<key>isStaticText</key>
-			<true />
-		</dict>
-		<dict>
- 			<key>cell</key>
- 			<string>PSLinkCell</string>
- 			<key>label</key>
- 			<string>致谢</string>
- 			<key>detail</key>
- 			<string>KayokoCreditsListController</string>
- 		</dict>
-
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-		</dict>
-		<dict>
-			<key>cellClass</key>
-			<string>LinkCell</string>
-			<key>label</key>
-			<string>我的插件</string>
-			<key>subtitle</key>
-			<string>查看我的其他作品。</string>
-			<key>url</key>
-			<string>https://akarii.cafe/user/AlexandraAurora</string>
-			<key>height</key>
-			<integer>54</integer>
-		</dict>
-		<dict>
-			<key>cellClass</key>
-			<string>LinkCell</string>
-			<key>label</key>
-			<string>源代码</string>
-			<key>subtitle</key>
-			<string>在我的 GitHub 上查看。</string>
-			<key>url</key>
-			<string>https://github.com/AlexandraAurora/Kayoko</string>
-			<key>height</key>
-			<integer>54</integer>
-		</dict>
-		<dict>
-			<key>cellClass</key>
-			<string>LinkCell</string>
-			<key>label</key>
-			<string>捐赠</string>
-			<key>subtitle</key>
-			<string>让我知道你喜欢我做的事情。</string>
-			<key>url</key>
-			<string>https://ko-fi.com/AlexandraAurora</string>
-			<key>height</key>
-			<integer>54</integer>
-		</dict>
 	</array>
 	<key>title</key>
 	<string>Kayoko</string>
