@@ -32,7 +32,7 @@
         [[self layer] setShadowOpacity:0.5];
         [[self layer] setMasksToBounds:NO];
 
-        [self setBlurEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleRegular]];
+        [self setBlurEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleDark]];
         [self setBlurEffectView:[[UIVisualEffectView alloc] initWithEffect:[self blurEffect]]];
         [self addSubview:[self blurEffectView]];
 
