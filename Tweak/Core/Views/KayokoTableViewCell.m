@@ -63,7 +63,7 @@
         [NSLayoutConstraint activateConstraints:@[
             [[[self headerLabel] topAnchor] constraintEqualToAnchor:[[self iconImageView] bottomAnchor] constant:2],
             [[[self headerLabel] leadingAnchor] constraintEqualToAnchor:[[self iconImageView] leadingAnchor]],
-            [[[self headerLabel] widthAnchor] constraintEqualToAnchor:[[self iconImageView] widthAnchor]]
+            [[[self headerLabel] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-20]
         ]];
 
         // ── Image preview (right side, for image items) ────────
