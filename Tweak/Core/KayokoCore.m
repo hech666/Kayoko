@@ -156,7 +156,7 @@ static void load_preferences() {
 
     [preferences registerDefaults:@{
         kPreferenceKeyEnabled: @(kPreferenceKeyEnabledDefaultValue),
-        kPreferenceKeyMaximumHistoryAmount: @(kMaximumHistoryAmountDefaultValue),
+        kPreferenceKeyMaximumHistoryAmount: @(kPreferenceKeyMaximumHistoryAmountDefaultValue),
         kPreferenceKeySaveText: @(kPreferenceKeySaveTextDefaultValue),
         kPreferenceKeySaveImages: @(kPreferenceKeySaveImagesDefaultValue),
         kPreferenceKeyAutomaticallyPaste: @(kPreferenceKeyAutomaticallyPasteDefaultValue)
