@@ -7,11 +7,16 @@
 
 #import "KayokoCore.h"
 #import <substrate.h>
+#import <os/log.h>
 #import "../../Manager/PasteboardManager.h"
 #import "Views/KayokoView.h"
 #import "Views/KayokoGeometry.h"
 #import "../../Preferences/PreferenceKeys.h"
 #import "../../Preferences/NotificationKeys.h"
+
+#ifndef APELIN_BUILD_ID
+#define APELIN_BUILD_ID "unknown"
+#endif
 
 #pragma mark - UIStatusBarWindow class hooks
 
@@ -112,6 +117,9 @@ static void load_preferences() {
  * Finally it registers the notification callbacks.
  */
 __attribute((constructor)) static void initialize() {
+    os_log_t apelinLog = os_log_create("codes.aurora.kayoko", "apelin");
+    os_log(apelinLog, "ApelinLoaded %{public}s", APELIN_BUILD_ID);
+
     load_preferences();
 
     if (!pfEnabled) {
