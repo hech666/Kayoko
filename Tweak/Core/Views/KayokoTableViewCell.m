@@ -25,6 +25,9 @@
     if (self) {
         [self setBackgroundColor:[UIColor clearColor]];
 
+        BOOL isImage = ![[item imageName] isEqualToString:@""];
+
+        // ── App icon ────────────────────────────────────────────
         [self setIconImageView:[[UIImageView alloc] init]];
 
         UIImage* icon = [UIImage _applicationIconImageForBundleIdentifier:[item bundleIdentifier] format:2 scale:[[UIScreen mainScreen] scale]];
@@ -36,18 +39,35 @@
 
         [[self iconImageView] setContentMode:UIViewContentModeScaleAspectFit];
         [[self iconImageView] setClipsToBounds:YES];
-        [[[self iconImageView] layer] setCornerRadius:10];
+        [[[self iconImageView] layer] setCornerRadius:8];
         [self addSubview:[self iconImageView]];
 
         [[self iconImageView] setTranslatesAutoresizingMaskIntoConstraints:NO];
         [NSLayoutConstraint activateConstraints:@[
-            [[[self iconImageView] widthAnchor] constraintEqualToConstant:40],
-            [[[self iconImageView] heightAnchor] constraintEqualToConstant:40],
-            [[[self iconImageView] centerYAnchor] constraintEqualToAnchor:[self centerYAnchor]],
-            [[[self iconImageView] leadingAnchor] constraintEqualToAnchor:[self leadingAnchor] constant:24]
+            [[[self iconImageView] widthAnchor] constraintEqualToConstant:36],
+            [[[self iconImageView] heightAnchor] constraintEqualToConstant:36],
+            [[[self iconImageView] topAnchor] constraintEqualToAnchor:[self topAnchor] constant:10],
+            [[[self iconImageView] leadingAnchor] constraintEqualToAnchor:[self leadingAnchor] constant:20]
         ]];
 
-        if (![[item imageName] isEqualToString:@""]) {
+        // ── App name (below the icon) ──────────────────────────
+        [self setHeaderLabel:[[UILabel alloc] init]];
+        NSString* displayName = [[[objc_getClass(@"SBApplicationController") sharedInstance] applicationWithBundleIdentifier:[item bundleIdentifier]] displayName] ?: @"SpringBoard";
+        [[self headerLabel] setText:displayName];
+        [[self headerLabel] setFont:[UIFont systemFontOfSize:11 weight:UIFontWeightMedium]];
+        [[self headerLabel] setTextColor:[[UIColor labelColor] colorWithAlphaComponent:0.6]];
+        [[self headerLabel] setLineBreakMode:NSLineBreakByTruncatingTail];
+        [self addSubview:[self headerLabel]];
+
+        [[self headerLabel] setTranslatesAutoresizingMaskIntoConstraints:NO];
+        [NSLayoutConstraint activateConstraints:@[
+            [[[self headerLabel] topAnchor] constraintEqualToAnchor:[[self iconImageView] bottomAnchor] constant:2],
+            [[[self headerLabel] leadingAnchor] constraintEqualToAnchor:[[self iconImageView] leadingAnchor]],
+            [[[self headerLabel] widthAnchor] constraintEqualToAnchor:[[self iconImageView] widthAnchor]]
+        ]];
+
+        // ── Image preview (right side, for image items) ────────
+        if (isImage) {
             [self setContentImageView:[[UIImageView alloc] init]];
 
             UIImage* originalImage = [[PasteboardManager sharedInstance] getImageForItem:item];
@@ -65,46 +85,26 @@
                 [[[self contentImageView] widthAnchor] constraintEqualToConstant:70],
                 [[[self contentImageView] heightAnchor] constraintEqualToConstant:40],
                 [[[self contentImageView] centerYAnchor] constraintEqualToAnchor:[self centerYAnchor]],
-                [[[self contentImageView] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-24]
+                [[[self contentImageView] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-20]
             ]];
         }
 
-        [self setHeaderLabel:[[UILabel alloc] init]];
-        NSString* displayName = [[[objc_getClass("SBApplicationController") sharedInstance] applicationWithBundleIdentifier:[item bundleIdentifier]] displayName] ?: @"SpringBoard";
-        [[self headerLabel] setText:displayName];
-        [[self headerLabel] setFont:[UIFont systemFontOfSize:16 weight:UIFontWeightMedium]];
-        [[self headerLabel] setTextColor:[UIColor labelColor]];
-        [self addSubview:[self headerLabel]];
+        // ── Content text (right of icon, only for non-image items) ──
+        if (!isImage) {
+            [self setContentLabel:[[UILabel alloc] init]];
+            [[self contentLabel] setText:[item content]];
+            [[self contentLabel] setFont:[UIFont systemFontOfSize:15]];
+            [[self contentLabel] setTextColor:[UIColor labelColor]];
+            [[self contentLabel] setLineBreakMode:NSLineBreakByTruncatingTail];
+            [self addSubview:[self contentLabel]];
 
-        [[self headerLabel] setTranslatesAutoresizingMaskIntoConstraints:NO];
-        [NSLayoutConstraint activateConstraints:@[
-            [[[self headerLabel] topAnchor] constraintEqualToAnchor:[[self iconImageView] topAnchor] constant:1],
-            [[[self headerLabel] leadingAnchor] constraintEqualToAnchor:[[self iconImageView] trailingAnchor] constant:16]
-        ]];
-
-        if ([self contentImageView]) {
+            [[self contentLabel] setTranslatesAutoresizingMaskIntoConstraints:NO];
             [NSLayoutConstraint activateConstraints:@[
-                [[[self headerLabel] trailingAnchor] constraintEqualToAnchor:[[self contentImageView] leadingAnchor] constant:-16]
-            ]];
-        } else {
-            [NSLayoutConstraint activateConstraints:@[
-                [[[self headerLabel] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-24]
+                [[[self contentLabel] centerYAnchor] constraintEqualToAnchor:[self centerYAnchor]],
+                [[[self contentLabel] leadingAnchor] constraintEqualToAnchor:[[self iconImageView] trailingAnchor] constant:14],
+                [[[self contentLabel] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-20]
             ]];
         }
-
-        [self setContentLabel:[[UILabel alloc] init]];
-        [[self contentLabel] setText:[item content]];
-        [[self contentLabel] setFont:[UIFont systemFontOfSize:14]];
-        [[self contentLabel] setTextColor:[[UIColor labelColor] colorWithAlphaComponent:0.8]];
-        [[self contentLabel] setLineBreakMode:NSLineBreakByTruncatingTail];
-        [self addSubview:[self contentLabel]];
-
-        [[self contentLabel] setTranslatesAutoresizingMaskIntoConstraints:NO];
-        [NSLayoutConstraint activateConstraints:@[
-            [[[self contentLabel] bottomAnchor] constraintEqualToAnchor:[[self iconImageView] bottomAnchor] constant:-1],
-            [[[self contentLabel] leadingAnchor] constraintEqualToAnchor:[[self headerLabel] leadingAnchor]],
-            [[[self contentLabel] trailingAnchor] constraintEqualToAnchor:[[self headerLabel] trailingAnchor]]
-        ]];
     }
 
     return self;
