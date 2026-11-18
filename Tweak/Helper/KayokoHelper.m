@@ -213,7 +213,7 @@ static void override_UIKeyboardImpl_applicationWillResignActive(UIKeyboardImpl* 
  * Pastes the last copied item from the history.
  */
 static void paste() {
-    if (!applicationIsInForeground || !pfEnabled || !pfAutomaticallyPaste) {
+    if (!applicationIsInForeground || !pfEnabled) {
         return;
     }
 
@@ -235,6 +235,12 @@ static void paste() {
     }
 
     [[UIApplication sharedApplication] sendAction:@selector(paste:) to:nil from:nil forEvent:nil];
+}
+
+static void kayoko_helper_paste_requested(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (pfAutomaticallyPaste) paste();
+    });
 }
 
 #pragma mark - Preferences
@@ -345,6 +351,6 @@ __attribute((constructor)) static void initialize() {
     MSHookMessageEx(objc_getClass("UIKeyboardImpl"), @selector(applicationDidBecomeActive:), (IMP)&override_UIKeyboardImpl_applicationDidBecomeActive, (IMP *)&orig_UIKeyboardImpl_applicationDidBecomeActive);
     MSHookMessageEx(objc_getClass("UIKeyboardImpl"), @selector(applicationWillResignActive:), (IMP)&override_UIKeyboardImpl_applicationWillResignActive, (IMP *)&orig_UIKeyboardImpl_applicationWillResignActive);
 
-    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)paste, (CFStringRef)kNotificationKeyHelperPaste, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, kayoko_helper_paste_requested, (CFStringRef)kNotificationKeyHelperPaste, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, kayoko_helper_preferences_changed, (CFStringRef)kNotificationKeyPreferencesReload, NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
 }
