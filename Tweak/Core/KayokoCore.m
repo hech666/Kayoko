@@ -7,6 +7,7 @@
 
 #import "KayokoCore.h"
 #import <substrate.h>
+#import <objc/runtime.h>
 #import <os/log.h>
 #import "../../Manager/PasteboardManager.h"
 #import "Views/KayokoView.h"
@@ -51,11 +52,76 @@ static void pasteboard_changed() {
 }
 
 /**
- * Shows the history.
+ * Shows the history after the status-bar window has created the panel.
+ * Darwin callbacks may arrive before UIKit finishes creating UIStatusBarWindow.
  */
+static CFAbsoluteTime squidShowSuppressHideUntil = 0;
+
+static void show_on_main_thread(NSUInteger attempt) {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            show_on_main_thread(attempt);
+        });
+        return;
+    }
+
+    if (kayokoView) {
+        if ([kayokoView isHidden]) {
+            [kayokoView show];
+        }
+        return;
+    }
+
+    // The action can arrive before UIStatusBarWindow has finished loading.
+    if (attempt < 10) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+            dispatch_get_main_queue(), ^{
+                show_on_main_thread(attempt + 1);
+            });
+    }
+}
+
 static void show() {
-    if ([kayokoView isHidden]) {
-        [kayokoView show];
+    show_on_main_thread(0);
+}
+
+#pragma mark - SquidGesturePro compatibility
+
+static BOOL squidCompatibilityHookInstalled = NO;
+static void (*orig_SGActionStore_showCopyVaultHistory)(id self, SEL _cmd);
+
+static void hook_SGActionStore_showCopyVaultHistory(id self, SEL _cmd) {
+    if (orig_SGActionStore_showCopyVaultHistory) {
+        orig_SGActionStore_showCopyVaultHistory(self, _cmd);
+    }
+
+    // Squid 2.7.x exposes this stable selector for its clipboard-history action.
+    // Suppress the keyboard-dismiss hide callback that may follow this gesture.
+    squidShowSuppressHideUntil = CFAbsoluteTimeGetCurrent() + 1.0;
+    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+        (CFStringRef)kNotificationKeyCoreShow, NULL, NULL, YES);
+}
+
+static void install_squid_compatibility_hook(NSUInteger attempt) {
+    if (squidCompatibilityHookInstalled) {
+        return;
+    }
+
+    Class actionStore = objc_getClass("SGActionStore");
+    SEL selector = NSSelectorFromString(@"sg_showCopyVaultHistory");
+    if (actionStore && class_getInstanceMethod(actionStore, selector)) {
+        MSHookMessageEx(actionStore, selector, (IMP)&hook_SGActionStore_showCopyVaultHistory,
+            (IMP *)&orig_SGActionStore_showCopyVaultHistory);
+        squidCompatibilityHookInstalled = YES;
+        return;
+    }
+
+    // Squid may load after Kayoko's constructor.
+    if (attempt < 10) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+            dispatch_get_main_queue(), ^{
+                install_squid_compatibility_hook(attempt + 1);
+            });
     }
 }
 
@@ -63,7 +129,10 @@ static void show() {
  * Hides the history.
  */
 static void hide() {
-    if (![kayokoView isHidden]) {
+    if (CFAbsoluteTimeGetCurrent() < squidShowSuppressHideUntil) {
+        return;
+    }
+    if (kayokoView && ![kayokoView isHidden]) {
         [kayokoView hide];
     }
 }
@@ -72,7 +141,7 @@ static void hide() {
  * Reloads the history.
  */
 static void reload() {
-    if (![kayokoView isHidden]) {
+    if (kayokoView && ![kayokoView isHidden]) {
         [kayokoView reload];
     }
 }
@@ -87,7 +156,7 @@ static void load_preferences() {
 
     [preferences registerDefaults:@{
         kPreferenceKeyEnabled: @(kPreferenceKeyEnabledDefaultValue),
-        kPreferenceKeyMaximumHistoryAmount: @(kPreferenceKeyMaximumHistoryAmountDefaultValue),
+        kPreferenceKeyMaximumHistoryAmount: @(kMaximumHistoryAmountDefaultValue),
         kPreferenceKeySaveText: @(kPreferenceKeySaveTextDefaultValue),
         kPreferenceKeySaveImages: @(kPreferenceKeySaveImagesDefaultValue),
         kPreferenceKeyAutomaticallyPaste: @(kPreferenceKeyAutomaticallyPasteDefaultValue)
@@ -130,7 +199,11 @@ __attribute((constructor)) static void initialize() {
 
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)pasteboard_changed, (CFStringRef)kNotificationKeyObserverPasteboardChanged, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)show, (CFStringRef)kNotificationKeyCoreShow, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)show, (CFStringRef)kNotificationKeyLegacyCoreShow, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)hide, (CFStringRef)kNotificationKeyCoreHide, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)hide, (CFStringRef)kNotificationKeyLegacyCoreHide, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)reload, (CFStringRef)kNotificationKeyCoreReload, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)load_preferences, (CFStringRef)kNotificationKeyPreferencesReload, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
+
+    install_squid_compatibility_hook(0);
 }
