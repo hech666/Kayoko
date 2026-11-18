@@ -12,6 +12,10 @@
 #import "../../Manager/PasteboardItem.h"
 #import "../../Preferences/NotificationKeys.h"
 #import "../../Preferences/PreferenceKeys.h"
+#import "KayokoDictationActivation.h"
+
+static void load_preferences(void);
+static void kayoko_helper_install_activation_hooks(void);
 
 #pragma mark - UIKeyboardAutocorrectionController class hooks
 
@@ -24,7 +28,7 @@
  */
 static void (* orig_UIKeyboardAutocorrectionController_setTextSuggestionList)(UIKeyboardAutocorrectionController* self, SEL _cmd, TIAutocorrectionList* textSuggestionList);
 static void override_UIKeyboardAutocorrectionController_setTextSuggestionList(UIKeyboardAutocorrectionController* self, SEL _cmd, TIAutocorrectionList* textSuggestionList) {
-    if (shouldShowCustomSuggestions) {
+    if (pfEnabled && pfActivationMethod == kActivationMethodPredictionBar && shouldShowCustomSuggestions) {
         orig_UIKeyboardAutocorrectionController_setTextSuggestionList(self, _cmd, createAutocorrectionList());
     } else {
         orig_UIKeyboardAutocorrectionController_setTextSuggestionList(self, _cmd, textSuggestionList);
@@ -40,7 +44,7 @@ static void override_UIKeyboardAutocorrectionController_setTextSuggestionList(UI
  */
 static void (* orig_UIKeyboardAutocorrectionController_setAutocorrectionList)(UIKeyboardAutocorrectionController* self, SEL _cmd, TIAutocorrectionList* autoCorrectionList);
 static void override_UIKeyboardAutocorrectionController_setAutocorrectionList(UIKeyboardAutocorrectionController* self, SEL _cmd, TIAutocorrectionList* autoCorrectionList) {
-    if (shouldShowCustomSuggestions) {
+    if (pfEnabled && pfActivationMethod == kActivationMethodPredictionBar && shouldShowCustomSuggestions) {
         orig_UIKeyboardAutocorrectionController_setAutocorrectionList(self, _cmd, createAutocorrectionList());
     } else {
         orig_UIKeyboardAutocorrectionController_setAutocorrectionList(self, _cmd, autoCorrectionList);
@@ -79,7 +83,7 @@ static TIAutocorrectionList* createAutocorrectionList() {
  */
 static void (* orig_UIPredictionViewController_predictionView_didSelectCandidate)(UIPredictionViewController* self, SEL _cmd, TUIPredictionView* predictionView, TIZephyrCandidate* candidate);
 static void override_UIPredictionViewController_predictionView_didSelectCandidate(UIPredictionViewController* self, SEL _cmd, TUIPredictionView* predictionView, TIZephyrCandidate* candidate) {
-    if ([candidate respondsToSelector:@selector(fromBundleId)] && [[candidate fromBundleId] isEqualToString:@"codes.aurora.kayoko"]) {
+    if (pfEnabled && pfActivationMethod == kActivationMethodPredictionBar && [candidate respondsToSelector:@selector(fromBundleId)] && [[candidate fromBundleId] isEqualToString:@"codes.aurora.kayoko"]) {
         if ([[candidate label] isEqualToString:@"历史记录"]) {
             CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreShow, nil, nil, YES);
         } else if ([[candidate label] isEqualToString:@"复制"]) {
@@ -116,8 +120,10 @@ static void override_UIPredictionViewController_predictionView_didSelectCandidat
  *
  * @return Whether the prediction bar should be visible or not.
  */
+static BOOL (*kayoko_helper_original_prediction_visibility)(UIPredictionViewController *, SEL, id, id);
 static BOOL override_UIPredictionViewController_isVisibleForInputDelegate_inputViews(UIPredictionViewController* self, SEL _cmd, id delegate, id inputViews) {
-    return YES;
+    if (pfEnabled && pfActivationMethod == kActivationMethodPredictionBar) return YES;
+    return kayoko_helper_original_prediction_visibility(self, _cmd, delegate, inputViews);
 }
 
 #pragma mark - UIKeyboardLayoutStar class hooks
@@ -131,6 +137,7 @@ static void (* orig_UIKeyboardLayoutStar_setKeyplaneName)(UIKeyboardLayoutStar* 
 static void override_UIKeyboardLayoutStar_setKeyplaneName(UIKeyboardLayoutStar* self, SEL _cmd, NSString* name) {
     orig_UIKeyboardLayoutStar_setKeyplaneName(self, _cmd, name);
 
+    if (!pfEnabled || pfActivationMethod != kActivationMethodPredictionBar) return;
     shouldShowCustomSuggestions = [name isEqualToString:@"numbers-and-punctuation"] || [name isEqualToString:@"numbers-and-punctuation-alternate"];
 
     if (@available(iOS 15.0, *)) {
@@ -155,7 +162,7 @@ static UIKBTree* override_UIKeyboardLayoutStar_keyHitTest(UIKeyboardLayoutStar* 
     UIKBTree* orig = orig_UIKeyboardLayoutStar_keyHitTest(self, _cmd, point);
 
     // Unset the original action and tell the core to show the history.
-    if ([[orig name] isEqualToString:@"Dictation-Key"]) {
+    if (kayoko_dictation_active() && [[orig name] isEqualToString:@"Dictation-Key"]) {
         [[orig properties] setValue:@(0) forKey:@"KBinteractionType"];
         CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreShow, nil, nil, YES);
     }
@@ -169,22 +176,12 @@ static UIKBTree* override_UIKeyboardLayoutStar_keyHitTest(UIKeyboardLayoutStar* 
 static void (* orig_UIKeyboardLayoutStar_didMoveToWindow)(UIKeyboardLayoutStar* self, SEL _cmd);
 static void override_UIKeyboardLayoutStar_didMoveToWindow(UIKeyboardLayoutStar* self, SEL _cmd) {
     orig_UIKeyboardLayoutStar_didMoveToWindow(self, _cmd);
-    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreHide, nil, nil, YES);
+    if (self.window == nil) {
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreHide, nil, nil, YES);
+    }
 }
 
 #pragma mark - UIKeyboardImpl class hooks
-
-/**
- * Makes the dictation key always show.
- *
- * This applies to devices using the modern keyboard.
- * @see keyHitTest for a more in-depth explanation.
- *
- * @return Whether the dictation key should be shown.
- */
-static BOOL override_UIKeyboardImpl_shouldShowDictationKey(UIKeyboardImpl* self, SEL _cmd) {
-    return YES;
-}
 
 /**
  * Notes that the app became active.
@@ -195,6 +192,8 @@ static void (* orig_UIKeyboardImpl_applicationDidBecomeActive)(UIKeyboardImpl* s
 static void override_UIKeyboardImpl_applicationDidBecomeActive(UIKeyboardImpl* self, SEL _cmd, BOOL didBecomeActive) {
     orig_UIKeyboardImpl_applicationDidBecomeActive(self, _cmd, didBecomeActive);
     applicationIsInForeground = YES;
+    load_preferences();
+    kayoko_helper_install_activation_hooks();
 }
 
 /**
@@ -208,27 +207,13 @@ static void override_UIKeyboardImpl_applicationWillResignActive(UIKeyboardImpl* 
     applicationIsInForeground = NO;
 }
 
-#pragma mark - UISystemKeyboardDockController class hooks
-
-/**
- * Shows the history with the dictation button.
- *
- * This method usage only works on devices with the modern keyboard.
- * @see keyHitTest for a more in-depth explanation.
- *
- * @param event
- */
-static void override_UISystemKeyboardDockController_dictationItemButtonWasPressed_withEvent(UISystemKeyboardDockController* self, SEL _cmd, UIEvent* event) {
-    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreShow, nil, nil, YES);
-}
-
 #pragma mark - Notification callbacks
 
 /**
  * Pastes the last copied item from the history.
  */
 static void paste() {
-    if (!applicationIsInForeground) {
+    if (!applicationIsInForeground || !pfEnabled || !pfAutomaticallyPaste) {
         return;
     }
 
@@ -257,19 +242,58 @@ static void paste() {
 /**
  * Loads the user's preferences.
  */
-static void load_preferences() {
-    preferences = [[NSUserDefaults alloc] initWithSuiteName:[NSString stringWithFormat:@"/var/mobile/Library/Preferences/%@.plist", kPreferencesIdentifier]];
+static void load_preferences(void) {
+    // Obtain sandbox access before opening the preferences file.
     libSandy_applyProfile("Kayoko");
+    preferences = [[NSUserDefaults alloc] initWithSuiteName:kPreferencesIdentifier];
+    [preferences synchronize];
 
-    [preferences registerDefaults:@{
-        kPreferenceKeyEnabled: @(kPreferenceKeyEnabledDefaultValue),
-        kPreferenceKeyActivationMethod: @(kPreferenceKeyActivationMethodDefaultValue),
-        kPreferenceKeyAutomaticallyPaste: @(kPreferenceKeyAutomaticallyPasteDefaultValue)
-    }];
+#if defined(THEOS_PACKAGE_SCHEME_ROOTHIDE)
+    NSString *path = ROOT_PATH_NS(@"/var/mobile/Library/Preferences/codes.aurora.kayoko.preferences.plist");
+#else
+    NSString *path = @"/var/mobile/Library/Preferences/codes.aurora.kayoko.preferences.plist";
+#endif
+    NSDictionary *snapshot = [NSDictionary dictionaryWithContentsOfFile:path];
+    id enabled = snapshot ? snapshot[kPreferenceKeyEnabled] : [preferences objectForKey:kPreferenceKeyEnabled];
+    id activation = snapshot ? snapshot[kPreferenceKeyActivationMethod] : [preferences objectForKey:kPreferenceKeyActivationMethod];
+    id automatic = snapshot ? snapshot[kPreferenceKeyAutomaticallyPaste] : [preferences objectForKey:kPreferenceKeyAutomaticallyPaste];
+    pfEnabled = [enabled respondsToSelector:@selector(boolValue)] ? [enabled boolValue] : kPreferenceKeyEnabledDefaultValue;
+    pfActivationMethod = [activation respondsToSelector:@selector(unsignedIntegerValue)] ? [activation unsignedIntegerValue] : kPreferenceKeyActivationMethodDefaultValue;
+    if (pfActivationMethod != kActivationMethodDictationKey) pfActivationMethod = kActivationMethodPredictionBar;
+    pfAutomaticallyPaste = [automatic respondsToSelector:@selector(boolValue)] ? [automatic boolValue] : kPreferenceKeyAutomaticallyPasteDefaultValue;
+}
 
-    pfEnabled = [[preferences objectForKey:kPreferenceKeyEnabled] boolValue];
-    pfActivationMethod = [[preferences objectForKey:kPreferenceKeyActivationMethod] unsignedIntegerValue];
-    pfAutomaticallyPaste = [[preferences objectForKey:kPreferenceKeyAutomaticallyPaste] boolValue];
+static void kayoko_helper_preferences_changed(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        load_preferences();
+        kayoko_helper_install_activation_hooks();
+    });
+}
+
+static BOOL kayoko_helper_prediction_installed;
+static BOOL kayoko_helper_legacy_key_installed;
+static void kayoko_helper_install_activation_hooks(void) {
+    if (pfEnabled && pfActivationMethod == kActivationMethodPredictionBar && !kayoko_helper_prediction_installed) {
+        if (@available(iOS 15.0, *)) {
+            MSHookMessageEx(objc_getClass("UIKeyboardAutocorrectionController"), @selector(setAutocorrectionList:), (IMP)&override_UIKeyboardAutocorrectionController_setAutocorrectionList, (IMP *)&orig_UIKeyboardAutocorrectionController_setAutocorrectionList);
+        } else {
+            MSHookMessageEx(objc_getClass("UIKeyboardAutocorrectionController"), @selector(setTextSuggestionList:), (IMP)&override_UIKeyboardAutocorrectionController_setTextSuggestionList, (IMP *)&orig_UIKeyboardAutocorrectionController_setTextSuggestionList);
+        }
+        MSHookMessageEx(objc_getClass("UIPredictionViewController"), @selector(isVisibleForInputDelegate:inputViews:), (IMP)&override_UIPredictionViewController_isVisibleForInputDelegate_inputViews, (IMP *)&kayoko_helper_original_prediction_visibility);
+        MSHookMessageEx(objc_getClass("UIKeyboardLayoutStar"), @selector(setKeyplaneName:), (IMP)&override_UIKeyboardLayoutStar_setKeyplaneName, (IMP *)&orig_UIKeyboardLayoutStar_setKeyplaneName);
+        MSHookMessageEx(objc_getClass("UIPredictionViewController"), @selector(predictionView:didSelectCandidate:), (IMP)&override_UIPredictionViewController_predictionView_didSelectCandidate, (IMP *)&orig_UIPredictionViewController_predictionView_didSelectCandidate);
+        kayoko_helper_prediction_installed = YES;
+    }
+    if (pfEnabled && pfActivationMethod == kActivationMethodDictationKey) {
+        kayoko_dictation_install_hooks();
+        Class layout = objc_getClass("UIKeyboardLayoutStar");
+        SEL hit = @selector(keyHitTest:);
+        if (!kayoko_helper_legacy_key_installed && layout && class_getInstanceMethod(layout, hit)) {
+            MSHookMessageEx(layout, hit, (IMP)&override_UIKeyboardLayoutStar_keyHitTest, (IMP *)&orig_UIKeyboardLayoutStar_keyHitTest);
+            kayoko_helper_legacy_key_installed = YES;
+        }
+    }
+
 }
 
 #pragma mark - Constructor
@@ -283,10 +307,6 @@ static void load_preferences() {
  */
 __attribute((constructor)) static void initialize() {
     load_preferences();
-
-    if (!pfEnabled) {
-        return;
-    }
 
     if (![NSProcessInfo processInfo]) {
         return;
@@ -319,26 +339,12 @@ __attribute((constructor)) static void initialize() {
         return;
     }
 
-    if (pfActivationMethod == kActivationMethodPredictionBar) {
-        if (@available(iOS 15.0, *)) {
-            MSHookMessageEx(objc_getClass("UIKeyboardAutocorrectionController"), @selector(setAutocorrectionList:), (IMP)&override_UIKeyboardAutocorrectionController_setAutocorrectionList, (IMP *)&orig_UIKeyboardAutocorrectionController_setAutocorrectionList);
-        } else {
-            MSHookMessageEx(objc_getClass("UIKeyboardAutocorrectionController"), @selector(setTextSuggestionList:), (IMP)&override_UIKeyboardAutocorrectionController_setTextSuggestionList, (IMP *)&orig_UIKeyboardAutocorrectionController_setTextSuggestionList);
-        }
-        MSHookMessageEx(objc_getClass("UIPredictionViewController"), @selector(isVisibleForInputDelegate:inputViews:), (IMP)&override_UIPredictionViewController_isVisibleForInputDelegate_inputViews, (IMP *)nil);
-        MSHookMessageEx(objc_getClass("UIKeyboardLayoutStar"), @selector(setKeyplaneName:), (IMP)&override_UIKeyboardLayoutStar_setKeyplaneName, (IMP *)&orig_UIKeyboardLayoutStar_setKeyplaneName);
-        MSHookMessageEx(objc_getClass("UIPredictionViewController"), @selector(predictionView:didSelectCandidate:), (IMP)&override_UIPredictionViewController_predictionView_didSelectCandidate, (IMP *)&orig_UIPredictionViewController_predictionView_didSelectCandidate);
-    } else if (pfActivationMethod == kActivationMethodDictationKey) {
-        MSHookMessageEx(objc_getClass("UISystemKeyboardDockController"), @selector(dictationItemButtonWasPressed:withEvent:), (IMP)&override_UISystemKeyboardDockController_dictationItemButtonWasPressed_withEvent, nil);
-        MSHookMessageEx(objc_getClass("UIKeyboardImpl"), @selector(shouldShowDictationKey), (IMP)&override_UIKeyboardImpl_shouldShowDictationKey, nil);
-        MSHookMessageEx(objc_getClass("UIKeyboardLayoutStar"), @selector(keyHitTest:), (IMP)&override_UIKeyboardLayoutStar_keyHitTest, (IMP *)&orig_UIKeyboardLayoutStar_keyHitTest);
-    }
+    kayoko_helper_install_activation_hooks();
 
     MSHookMessageEx(objc_getClass("UIKeyboardLayoutStar"), @selector(didMoveToWindow), (IMP)&override_UIKeyboardLayoutStar_didMoveToWindow, (IMP *)&orig_UIKeyboardLayoutStar_didMoveToWindow);
     MSHookMessageEx(objc_getClass("UIKeyboardImpl"), @selector(applicationDidBecomeActive:), (IMP)&override_UIKeyboardImpl_applicationDidBecomeActive, (IMP *)&orig_UIKeyboardImpl_applicationDidBecomeActive);
     MSHookMessageEx(objc_getClass("UIKeyboardImpl"), @selector(applicationWillResignActive:), (IMP)&override_UIKeyboardImpl_applicationWillResignActive, (IMP *)&orig_UIKeyboardImpl_applicationWillResignActive);
 
-    if (pfAutomaticallyPaste) {
-        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)paste, (CFStringRef)kNotificationKeyHelperPaste, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
-    }
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)paste, (CFStringRef)kNotificationKeyHelperPaste, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, kayoko_helper_preferences_changed, (CFStringRef)kNotificationKeyPreferencesReload, NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
 }

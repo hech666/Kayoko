@@ -35,6 +35,11 @@ jobs:
           xcrun --find clang
           brew install dpkg ldid
 
+      - name: Check dictation activation callbacks
+        run: |
+          xcrun clang -fobjc-arc -framework Foundation -framework CoreFoundation ci/DictationActivationTests.m -o "$RUNNER_TEMP/kayoko-dictation-tests"
+          "$RUNNER_TEMP/kayoko-dictation-tests"
+
       - name: Bump Package Version
         id: bump
         run: |

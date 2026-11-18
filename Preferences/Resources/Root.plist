@@ -129,6 +129,8 @@
 				<string>预测栏</string>
 				<string>听写键</string>
 			</array>
+			<key>PostNotification</key>
+			<string>codes.aurora.kayoko.preferences.reload</string>
 		</dict>
 		<dict>
 			<key>cell</key>
