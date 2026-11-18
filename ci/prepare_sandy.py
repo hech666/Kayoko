@@ -7,10 +7,10 @@ theos = Path(os.environ['THEOS'])
 scheme = os.environ.get('THEOS_PACKAGE_SCHEME', 'roothide')
 if scheme == 'roothide':
     install_name = '@loader_path/.jbroot/usr/lib/libsandy.dylib'
-    libdirs = [theos / 'lib', theos / 'lib/iphone/rootless']
+    libdirs = [theos / 'vendor/lib', theos / 'lib', theos / 'lib/iphone/rootless']
 else:
     install_name = '@rpath/libsandy.dylib'
-    libdirs = [theos / 'lib/iphone/rootless', theos / 'lib']
+    libdirs = [theos / 'vendor/lib', theos / 'lib/iphone/rootless', theos / 'lib']
 for libdir in libdirs:
     libdir.mkdir(parents=True, exist_ok=True)
     tbd = '''--- !tapi-tbd-v3
