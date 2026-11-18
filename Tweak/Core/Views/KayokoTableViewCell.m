@@ -57,13 +57,14 @@
         [[self headerLabel] setFont:[UIFont systemFontOfSize:11 weight:UIFontWeightMedium]];
         [[self headerLabel] setTextColor:[[UIColor labelColor] colorWithAlphaComponent:0.6]];
         [[self headerLabel] setLineBreakMode:NSLineBreakByTruncatingTail];
+        [[self headerLabel] setTextAlignment:NSTextAlignmentCenter];
         [self addSubview:[self headerLabel]];
 
         [[self headerLabel] setTranslatesAutoresizingMaskIntoConstraints:NO];
         [NSLayoutConstraint activateConstraints:@[
             [[[self headerLabel] topAnchor] constraintEqualToAnchor:[[self iconImageView] bottomAnchor] constant:2],
-            [[[self headerLabel] leadingAnchor] constraintEqualToAnchor:[[self iconImageView] leadingAnchor]],
-            [[[self headerLabel] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-20]
+            [[[self headerLabel] centerXAnchor] constraintEqualToAnchor:[[self iconImageView] centerXAnchor]],
+            [[[self headerLabel] widthAnchor] constraintLessThanOrEqualToConstant:120]
         ]];
 
         // ── Image preview (right side, for image items) ────────
@@ -82,8 +83,8 @@
 
             [[self contentImageView] setTranslatesAutoresizingMaskIntoConstraints:NO];
             [NSLayoutConstraint activateConstraints:@[
-                [[[self contentImageView] widthAnchor] constraintEqualToConstant:70],
-                [[[self contentImageView] heightAnchor] constraintEqualToConstant:40],
+                [[[self contentImageView] widthAnchor] constraintEqualToConstant:100],
+                [[[self contentImageView] heightAnchor] constraintEqualToConstant:56],
                 [[[self contentImageView] centerYAnchor] constraintEqualToAnchor:[self centerYAnchor]],
                 [[[self contentImageView] centerXAnchor] constraintEqualToAnchor:[self centerXAnchor] constant:18]
             ]];
