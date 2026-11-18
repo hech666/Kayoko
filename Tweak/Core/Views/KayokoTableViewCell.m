@@ -52,7 +52,7 @@
 
         // ── App name (below the icon) ──────────────────────────
         [self setHeaderLabel:[[UILabel alloc] init]];
-        NSString* displayName = [[[objc_getClass(@"SBApplicationController") sharedInstance] applicationWithBundleIdentifier:[item bundleIdentifier]] displayName] ?: @"SpringBoard";
+        NSString* displayName = [[[NSClassFromString(@"SBApplicationController") sharedInstance] applicationWithBundleIdentifier:[item bundleIdentifier]] displayName] ?: @"SpringBoard";
         [[self headerLabel] setText:displayName];
         [[self headerLabel] setFont:[UIFont systemFontOfSize:11 weight:UIFontWeightMedium]];
         [[self headerLabel] setTextColor:[[UIColor labelColor] colorWithAlphaComponent:0.6]];
@@ -85,7 +85,7 @@
                 [[[self contentImageView] widthAnchor] constraintEqualToConstant:70],
                 [[[self contentImageView] heightAnchor] constraintEqualToConstant:40],
                 [[[self contentImageView] centerYAnchor] constraintEqualToAnchor:[self centerYAnchor]],
-                [[[self contentImageView] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-20]
+                [[[self contentImageView] centerXAnchor] constraintEqualToAnchor:[self centerXAnchor] constant:18]
             ]];
         }
 
@@ -96,6 +96,7 @@
             [[self contentLabel] setFont:[UIFont systemFontOfSize:15]];
             [[self contentLabel] setTextColor:[UIColor labelColor]];
             [[self contentLabel] setLineBreakMode:NSLineBreakByTruncatingTail];
+            [[self contentLabel] setTextAlignment:NSTextAlignmentCenter];
             [self addSubview:[self contentLabel]];
 
             [[self contentLabel] setTranslatesAutoresizingMaskIntoConstraints:NO];
