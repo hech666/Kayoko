@@ -13,6 +13,7 @@
 #import "KayokoPreviewView.h"
 #import "../../../Manager/PasteboardManager.h"
 #import "../../../Manager/PasteboardItem.h"
+#import "../../../Preferences/NotificationKeys.h"
 
 @implementation KayokoView
 /**
@@ -384,6 +385,8 @@
     [self setAlpha:0];
     [self setHidden:NO];
 
+    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyPanelDidShow, nil, nil, YES);
+
     _isAnimating = YES;
     [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:UIViewAnimationOptionCurveEaseOut animations:^{
         [self setTransform:CGAffineTransformIdentity];
@@ -408,5 +411,7 @@
         [self setHidden:YES];
         _isAnimating = NO;
     }];
+
+    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyPanelDidHide, nil, nil, YES);
 }
 @end

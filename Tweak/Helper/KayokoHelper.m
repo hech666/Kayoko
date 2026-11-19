@@ -12,6 +12,7 @@
 #import "../../Manager/PasteboardItem.h"
 #import "../../Preferences/NotificationKeys.h"
 #import "../../Preferences/PreferenceKeys.h"
+#import "../TapOutsideDismiss.h"
 #import "KayokoDictationActivation.h"
 
 static void load_preferences(void);
@@ -243,6 +244,40 @@ static void kayoko_helper_paste_requested(CFNotificationCenterRef center, void *
     });
 }
 
+#pragma mark - Tap outside to dismiss
+
+static BOOL kayokoPanelVisible;
+
+/**
+ * Dismisses the panel when a touch lands outside of it.
+ *
+ * The panel is hosted by SpringBoard's UIStatusBarWindow. When a third party app
+ * is in the foreground and the status bar window lets the touch through, the app's
+ * own key window receives it here. We post the hide notification and swallow the
+ * touch so it doesn't interact with the app underneath.
+ */
+static UIView* (* orig_UIWindow_hitTest)(UIWindow* self, SEL _cmd, CGPoint point, UIEvent* event);
+static UIView* override_UIWindow_hitTest(UIWindow* self, SEL _cmd, CGPoint point, UIEvent* event) {
+    UIView* result = orig_UIWindow_hitTest(self, _cmd, point, event);
+    if (kayokoPanelVisible && UIScreen.mainScreen) {
+        CGPoint pointInWindow = [self convertPoint:point toView:nil];
+        CGRect panelFrame = KayokoTapOutsidePanelFrame(UIScreen.mainScreen.bounds, kKayokoPanelHeight);
+        if (KayokoTapOutsideShouldDismiss(panelFrame, pointInWindow)) {
+            CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreHide, nil, nil, YES);
+            return nil;
+        }
+    }
+    return result;
+}
+
+static void kayoko_helper_panel_did_show(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
+    kayokoPanelVisible = YES;
+}
+
+static void kayoko_helper_panel_did_hide(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
+    kayokoPanelVisible = NO;
+}
+
 #pragma mark - Preferences
 
 /**
@@ -346,6 +381,13 @@ __attribute((constructor)) static void initialize() {
     }
 
     kayoko_helper_install_activation_hooks();
+
+    Class helperWindowClass = objc_getClass("UIWindow");
+    if (helperWindowClass && class_getInstanceMethod(helperWindowClass, @selector(hitTest:withEvent:))) {
+        MSHookMessageEx(helperWindowClass, @selector(hitTest:withEvent:), (IMP)&override_UIWindow_hitTest, (IMP *)&orig_UIWindow_hitTest);
+    }
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, kayoko_helper_panel_did_show, (CFStringRef)kNotificationKeyPanelDidShow, NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, kayoko_helper_panel_did_hide, (CFStringRef)kNotificationKeyPanelDidHide, NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
 
     MSHookMessageEx(objc_getClass("UIKeyboardLayoutStar"), @selector(didMoveToWindow), (IMP)&override_UIKeyboardLayoutStar_didMoveToWindow, (IMP *)&orig_UIKeyboardLayoutStar_didMoveToWindow);
     MSHookMessageEx(objc_getClass("UIKeyboardImpl"), @selector(applicationDidBecomeActive:), (IMP)&override_UIKeyboardImpl_applicationDidBecomeActive, (IMP *)&orig_UIKeyboardImpl_applicationDidBecomeActive);

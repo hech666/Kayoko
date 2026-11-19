@@ -14,3 +14,6 @@ static NSString* const kNotificationKeyLegacyCoreHide = @"dev.traurige.kayoko.co
 static NSString* const kNotificationKeyCoreReload = @"codes.aurora.kayoko.core.reload";
 static NSString* const kNotificationKeyHelperPaste = @"codes.aurora.kayoko.helper.paste";
 static NSString* const kNotificationKeyPreferencesReload = @"codes.aurora.kayoko.preferences.reload";
+// Panel visibility state broadcast to Helper processes (for tap-outside-to-dismiss).
+static NSString* const kNotificationKeyPanelDidShow = @"codes.aurora.kayoko.panel.didShow";
+static NSString* const kNotificationKeyPanelDidHide = @"codes.aurora.kayoko.panel.didHide";

@@ -14,6 +14,7 @@
 #import "Views/KayokoGeometry.h"
 #import "../../Preferences/PreferenceKeys.h"
 #import "../../Preferences/NotificationKeys.h"
+#import "../TapOutsideDismiss.h"
 
 #ifndef APELIN_BUILD_ID
 #define APELIN_BUILD_ID "unknown"
@@ -137,6 +138,70 @@ static void hide() {
     }
 }
 
+#pragma mark - Tap outside to dismiss
+
+/**
+ * Dismisses the panel when a touch lands outside of it.
+ *
+ * The panel lives inside SpringBoard's UIStatusBarWindow. On the home screen that
+ * window receives touches and can dismiss the panel itself. In a foreground third
+ * party app the touch may be delivered to the app's own key window instead, which
+ * KayokoHelper handles via a Darwin notification (see KayokoHelper.m).
+ */
+static UIView* (* orig_UIWindow_hitTest)(UIWindow* self, SEL _cmd, CGPoint point, UIEvent* event);
+static UIView* override_UIWindow_hitTest(UIWindow* self, SEL _cmd, CGPoint point, UIEvent* event) {
+    UIView* result = orig_UIWindow_hitTest(self, _cmd, point, event);
+    if (kayokoView && ![kayokoView isHidden] && kayokoView.alpha > 0.01 && kayokoView.window) {
+        CGPoint pointInPanel = [kayokoView convertPoint:[self convertPoint:point toView:nil] fromView:nil];
+        if (KayokoTapOutsideShouldDismiss(kayokoView.bounds, pointInPanel)) {
+            [kayokoView hide];
+            return nil;
+        }
+    }
+    return result;
+}
+
+/**
+ * Hook for UIStatusBarWindow's own hitTest implementation (if it overrides the
+ * base UIWindow method), so touches on the status bar window itself also dismiss.
+ */
+static UIView* (* orig_UIStatusBarWindow_hitTest)(UIStatusBarWindow* self, SEL _cmd, CGPoint point, UIEvent* event);
+static UIView* override_UIStatusBarWindow_hitTest(UIStatusBarWindow* self, SEL _cmd, CGPoint point, UIEvent* event) {
+    UIView* result = orig_UIStatusBarWindow_hitTest(self, _cmd, point, event);
+    if (kayokoView && ![kayokoView isHidden] && kayokoView.alpha > 0.01 && kayokoView.window) {
+        CGPoint pointInPanel = [kayokoView convertPoint:[self convertPoint:point toView:nil] fromView:nil];
+        if (KayokoTapOutsideShouldDismiss(kayokoView.bounds, pointInPanel)) {
+            [kayokoView hide];
+            return nil;
+        }
+    }
+    return result;
+}
+
+/**
+ * Installs the tap-outside-to-dismiss hooks.
+ */
+static void install_tap_outside_to_dismiss_hooks(void) {
+    Class windowClass = objc_getClass("UIWindow");
+    if (!windowClass) {
+        return;
+    }
+    SEL hitSelector = @selector(hitTest:withEvent:);
+    if (class_getInstanceMethod(windowClass, hitSelector)) {
+        MSHookMessageEx(windowClass, hitSelector, (IMP)&override_UIWindow_hitTest, (IMP *)&orig_UIWindow_hitTest);
+    }
+
+    Class statusBarWindowClass = objc_getClass("UIStatusBarWindow");
+    if (statusBarWindowClass && statusBarWindowClass != windowClass) {
+        Method ownMethod = class_getInstanceMethod(statusBarWindowClass, hitSelector);
+        Method baseMethod = class_getInstanceMethod(windowClass, hitSelector);
+        // Only hook separately if UIStatusBarWindow really overrides hitTest.
+        if (ownMethod && baseMethod && ownMethod != baseMethod) {
+            MSHookMessageEx(statusBarWindowClass, hitSelector, (IMP)&override_UIStatusBarWindow_hitTest, (IMP *)&orig_UIStatusBarWindow_hitTest);
+        }
+    }
+}
+
 /**
  * Reloads the history.
  */
@@ -205,5 +270,6 @@ __attribute((constructor)) static void initialize() {
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)reload, (CFStringRef)kNotificationKeyCoreReload, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)load_preferences, (CFStringRef)kNotificationKeyPreferencesReload, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
 
+    install_tap_outside_to_dismiss_hooks();
     install_squid_compatibility_hook(0);
 }

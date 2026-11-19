@@ -40,6 +40,11 @@ jobs:
           xcrun clang -fobjc-arc -framework Foundation -framework CoreFoundation ci/DictationActivationTests.m -o "$RUNNER_TEMP/kayoko-dictation-tests"
           "$RUNNER_TEMP/kayoko-dictation-tests"
 
+      - name: Check tap-outside-to-dismiss geometry
+        run: |
+          xcrun clang -fobjc-arc -framework Foundation -framework CoreGraphics ci/TapOutsideTests.m -o "$RUNNER_TEMP/kayoko-tapoutside-tests"
+          "$RUNNER_TEMP/kayoko-tapoutside-tests"
+
       - name: Bump Package Version
         id: bump
         run: |
