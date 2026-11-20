@@ -2,8 +2,6 @@
 #include <stdint.h>
 #include <time.h>
 
-static const uint64_t KayokoDefaultStallNanos = 3ull * NSEC_PER_SEC;
-
 static void KayokoArmStallTimer(dispatch_source_t timer, uint64_t delayNanos) {
     dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)delayNanos),
                               DISPATCH_TIME_FOREVER, 0);
