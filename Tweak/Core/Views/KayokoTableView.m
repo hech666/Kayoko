@@ -73,7 +73,8 @@
 
     NSDictionary* dictionary = [self items][[indexPath row]];
     PasteboardItem* item = [PasteboardItem itemFromDictionary:dictionary];
-    [[PasteboardManager sharedInstance] updatePasteboardWithItem:item fromHistoryWithKey:kHistoryKeyHistory shouldAutoPaste:YES];
+    NSString *sourceKey = [self.name isEqualToString:@"收藏"] ? kHistoryKeyFavorites : kHistoryKeyHistory;
+    [[PasteboardManager sharedInstance] updatePasteboardWithItem:item fromHistoryWithKey:sourceKey shouldAutoPaste:YES];
 
     [[self superview] performSelector:@selector(hide)];
 }
@@ -95,7 +96,7 @@
 
         if ([[item imageName] isEqualToString:@""]) {
             saveAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleNormal title:@"" handler:^(UIContextualAction* _Nonnull action, __kindof UIView* _Nonnull sourceView, void (^ _Nonnull completionHandler)(BOOL)) {
-                [[UIPasteboard generalPasteboard] setString:[item content]];
+                [[PasteboardManager sharedInstance] updatePasteboardWithItem:item fromHistoryWithKey:nil shouldAutoPaste:NO];
                 completionHandler(YES);
             }];
             [saveAction setImage:[UIImage systemImageNamed:@"doc.on.doc.fill"]];

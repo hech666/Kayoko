@@ -1,265 +1,235 @@
-//
-//  PasteboardManager.m
-//  Kayoko
-//
-//  Created by Alexandra Aurora Göttlicher
-//
-
+// Kayoko: asynchronous pasteboard access. Never wait for pasteboard IPC on main.
 #import "PasteboardManager.h"
 #import "PasteboardItem.h"
-#import "../Utils/StringUtil.h"
+#import "KayokoClipboardExecutor.h"
+#import "KayokoHistoryStore.h"
 #import "../Utils/ImageUtil.h"
-#import "../Utils/AlertUtil.h"
 #import "../Preferences/NotificationKeys.h"
 #import "../Preferences/PreferenceKeys.h"
+#import <dispatch/dispatch.h>
+#import <math.h>
+
+@interface PasteboardManager () {
+    KayokoClipboardExecutor *_clipboardExecutor;
+    KayokoHistoryStore *_historyStore;
+    BOOL _captureScheduled;
+    BOOL _receivedInitialChange;
+}
+- (NSDictionary *)recordForItem:(PasteboardItem *)item;
+- (void)captureWithBundle:(NSString *)bundle saveText:(BOOL)text saveImages:(BOOL)images limit:(NSUInteger)limit;
+@end
 
 @implementation PasteboardManager
-/**
- * Creates the shared instance.
- */
 + (instancetype)sharedInstance {
-    static PasteboardManager* sharedInstance;
-    static dispatch_once_t onceToken;
-
-    dispatch_once(&onceToken, ^{
-        sharedInstance = [PasteboardManager alloc];
-        sharedInstance->_pasteboard = [UIPasteboard generalPasteboard];
-        sharedInstance->_lastChangeCount = [sharedInstance->_pasteboard changeCount];
-        sharedInstance->_fileManager = [NSFileManager defaultManager];
-    });
-
-    return sharedInstance;
+    static PasteboardManager *instance;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ instance = [[self alloc] initPrivate]; });
+    return instance;
+}
+- (instancetype)init { return [PasteboardManager sharedInstance]; }
+- (instancetype)initPrivate {
+    if ((self = [super init])) {
+        // UIPasteboard creation AND changeCount can perform IPC. Both are lazy
+        // on the executor, not in dispatch_once during SpringBoard startup.
+        _lastChangeCount = 0;
+        _maximumHistoryAmount = kPreferenceKeyMaximumHistoryAmountDefaultValue;
+        _saveText = kPreferenceKeySaveTextDefaultValue;
+        _saveImages = kPreferenceKeySaveImagesDefaultValue;
+        _clipboardExecutor = [KayokoClipboardExecutor new];
+        _historyStore = [[KayokoHistoryStore alloc] initWithPath:kHistoryPath imagesPath:kHistoryImagesPath];
+        __weak typeof(self) weakSelf = self;
+        _historyStore.didChange = ^{
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSelf) [[NSNotificationCenter defaultCenter] postNotificationName:KayokoHistoryDidChangeNotification object:weakSelf];
+            });
+        };
+        _historyStore.didCommit = ^{
+            CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+                (CFStringRef)kNotificationKeyCoreReload, NULL, NULL, YES);
+        };
+        [_historyStore reloadAsync];
+    }
+    return self;
 }
 
-/**
- * Creates the manager using the shared instance.
- */
-- (instancetype)init {
-    return [PasteboardManager sharedInstance];
+- (void)reloadHistoryAsync { [_historyStore reloadAsync]; }
+
+- (NSDictionary *)recordForItem:(PasteboardItem *)item {
+    if (![item.content isKindOfClass:NSString.class] || item.content.length == 0) return nil;
+    return @{ kItemKeyBundleIdentifier: [item.bundleIdentifier copy] ?: @"com.apple.springboard",
+              kItemKeyContent: [item.content copy],
+              kItemKeyImageName: [item.imageName copy] ?: @"",
+              kItemKeyHasLink: @(item.hasLink) };
 }
 
-/**
- * Pulls new changes from the pasteboard.
- */
 - (void)pullPasteboardChanges {
-    // Return if the pasteboard is empty.
-    if ([_pasteboard changeCount] == _lastChangeCount || (![_pasteboard hasStrings] && ![_pasteboard hasImages])) {
-        return;
+    // Coalesce even before requesting main-thread foreground-app metadata.
+    @synchronized (self) {
+        if (_captureScheduled) return;
+        _captureScheduled = YES;
     }
-
-    [self ensureResourcesExist];
-
-    if ([self saveText]) {
-        // Don't pull strings if the pasteboard contains images.
-        // For example: When copying an image from the web we only want the image, without the string.
-        if (!([_pasteboard hasStrings] && [_pasteboard hasImages])) {
-            for (NSString* string in [_pasteboard strings]) {
-                @autoreleasepool {
-                    // The core only runs on the SpringBoard process, thus we can't use mainbundle to get the process' bundle identifier.
-                    // However, we can get it by using UIApplication/SpringBoard front-most-application.
-                    SBApplication* frontMostApplication = [[UIApplication sharedApplication] _accessibilityFrontMostApplication];
-                    PasteboardItem* item = [[PasteboardItem alloc] initWithBundleIdentifier:[frontMostApplication bundleIdentifier] andContent:string withImageNamed:nil];
-                    [self addPasteboardItem:item toHistoryWithKey:kHistoryKeyHistory];
-                }
-            }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        @synchronized (self) { self->_captureScheduled = NO; }
+        NSString *bundle = @"com.apple.springboard";
+        // UIKit/foreground-application queries stay on main; content does not.
+        UIApplication *app = UIApplication.sharedApplication;
+        if ([app respondsToSelector:@selector(_accessibilityFrontMostApplication)]) {
+            NSString *front = [[app _accessibilityFrontMostApplication] bundleIdentifier];
+            if (front.length) bundle = [front copy];
         }
-    }
+        BOOL text = self.saveText, images = self.saveImages;
+        NSUInteger limit = MIN(self.maximumHistoryAmount, (NSUInteger)10000);
+        if (!text && !images) return;
+        [self->_clipboardExecutor submitRead:^{
+            [self captureWithBundle:bundle saveText:text saveImages:images limit:limit];
+        }];
+    });
+}
 
-    if ([self saveImages]) {
-        for (UIImage* image in [_pasteboard images]) {
+- (void)captureWithBundle:(NSString *)bundle saveText:(BOOL)text saveImages:(BOOL)images limit:(NSUInteger)limit {
+    NSAssert(!NSThread.isMainThread, @"Clipboard reads must not run on main");
+    @autoreleasepool {
+        if (!_pasteboard) _pasteboard = [UIPasteboard generalPasteboard];
+        NSInteger generation = _pasteboard.changeCount;
+        if (_receivedInitialChange && generation == (NSInteger)_lastChangeCount) return;
+        // Fetch each representation only once. Prefer images over accompanying
+        // text, matching the original behavior, without reading images for text.
+        BOOL hasImages = _pasteboard.hasImages;
+        NSArray *strings = text && !hasImages ? [_pasteboard.strings copy] : nil;
+        NSArray *pictures = images && hasImages ? [_pasteboard.images copy] : nil;
+        if (_pasteboard.changeCount != generation) {
+            [self pullPasteboardChanges]; // clipboard changed while reading: retry latest only
+            return;
+        }
+        NSMutableArray *records = [NSMutableArray array];
+        NSMutableArray *newFiles = [NSMutableArray array];
+        for (id value in strings) {
+            if (records.count >= 64) break;
+            if (![value isKindOfClass:NSString.class] || [value length] == 0 || [value length] > 2 * 1024 * 1024) continue;
+            PasteboardItem *item = [[PasteboardItem alloc] initWithBundleIdentifier:bundle andContent:value withImageNamed:nil];
+            NSDictionary *record = [self recordForItem:item];
+            if (record) [records addObject:record];
+        }
+        for (id value in pictures) {
+            if (records.count >= 64) break;
             @autoreleasepool {
-                NSString* imageName = [StringUtil getRandomStringWithLength:32];
-
-                // Only save as PNG if the image has an alpha channel to save storage space.
-                if ([ImageUtil imageHasAlpha:image]) {
-                    imageName = [imageName stringByAppendingString:@".png"];
-                    NSString* filePath = [NSString stringWithFormat:@"%@/%@", kHistoryImagesPath, imageName];
-                    [UIImagePNGRepresentation([ImageUtil getRotatedImageFromImage:image]) writeToFile:filePath atomically:YES];
-                } else {
-                    imageName = [imageName stringByAppendingString:@".jpg"];
-                    NSString* filePath = [NSString stringWithFormat:@"%@/%@", kHistoryImagesPath, imageName];
-                    [UIImageJPEGRepresentation(image, 1) writeToFile:filePath atomically:YES];
+                if (![value isKindOfClass:UIImage.class]) continue;
+                UIImage *image = value;
+                // Do not inflate huge images in SpringBoard. Limit encoding work
+                // and skip unsupported CI-only payloads rather than risking OOM.
+                CGImageRef cg = image.CGImage;
+                if (!cg || (double)CGImageGetWidth(cg) * CGImageGetHeight(cg) > 24000000.0) {
+                    NSLog(@"[KayokoClipboard] skipped oversized/unsupported image");
+                    continue;
                 }
-
-                // See the above loop.
-                SBApplication* frontMostApplication = [[UIApplication sharedApplication] _accessibilityFrontMostApplication];
-                PasteboardItem* item = [[PasteboardItem alloc] initWithBundleIdentifier:[frontMostApplication bundleIdentifier] andContent:imageName withImageNamed:imageName];
-                [self addPasteboardItem:item toHistoryWithKey:kHistoryKeyHistory];
+                BOOL alpha = [ImageUtil imageHasAlpha:image];
+                NSData *data = alpha ? UIImagePNGRepresentation([ImageUtil getRotatedImageFromImage:image]) : UIImageJPEGRepresentation(image, 0.9);
+                if (data.length == 0 || data.length > 32 * 1024 * 1024) continue;
+                NSString *name = [NSUUID.UUID.UUIDString stringByAppendingString:alpha ? @".png" : @".jpg"];
+                NSString *path = [kHistoryImagesPath stringByAppendingPathComponent:name];
+                [[NSFileManager defaultManager] createDirectoryAtPath:kHistoryImagesPath withIntermediateDirectories:YES attributes:nil error:NULL];
+                if (![data writeToFile:path options:NSDataWritingAtomic error:NULL]) continue;
+                [newFiles addObject:path];
+                PasteboardItem *item = [[PasteboardItem alloc] initWithBundleIdentifier:bundle andContent:name withImageNamed:name];
+                [records addObject:[self recordForItem:item]];
             }
         }
-    }
-
-    _lastChangeCount = [_pasteboard changeCount];
-}
-
-/**
- * Adds an item to a specified history.
- *
- * @param item The item to save.
- * @param historyKey The key for the history which to save to.
- */
-- (void)addPasteboardItem:(PasteboardItem *)item toHistoryWithKey:(NSString *)historyKey {
-    if ([[item content] isEqualToString:@""]) {
-        return;
-    }
-
-    // Remove duplicates.
-    [self removePasteboardItem:item fromHistoryWithKey:historyKey shouldRemoveImage:NO];
-
-    NSMutableDictionary* json = [self getJson];
-    NSMutableArray* history = [self getItemsFromHistoryWithKey:historyKey];
-
-    [history insertObject:@{
-        kItemKeyBundleIdentifier: [item bundleIdentifier] ?: @"com.apple.springboard",
-        kItemKeyContent: [item content] ?: @"",
-        kItemKeyImageName: [item imageName] ?: @"",
-        kItemKeyHasLink: @([item hasLink])
-    } atIndex:0];
-
-    // Truncate the history corresponding the set limit.
-    while ([history count] > [self maximumHistoryAmount]) {
-        [history removeLastObject];
-    }
-
-    json[historyKey] = history;
-
-    [self setJsonFromDictionary:json];
-}
-
-/**
- * Removes an item from a specified history.
- *
- * @param item The item to remove.
- * @param historyKey The key for the history from which to remove from.
- * @param shouldRemoveImage Whether to remove the item's corresponding image or not.
- */
-- (void)removePasteboardItem:(PasteboardItem *)item fromHistoryWithKey:(NSString *)historyKey shouldRemoveImage:(BOOL)shouldRemoveImage {
-    NSMutableDictionary* json = [self getJson];
-    NSMutableArray* history = json[historyKey];
-
-    for (NSDictionary* dictionary in history) {
-        @autoreleasepool {
-            PasteboardItem* historyItem = [PasteboardItem itemFromDictionary:dictionary];
-
-            if ([[historyItem content] isEqualToString:[item content]]) {
-                [history removeObject:dictionary];
-
-                if (![[item imageName] isEqualToString:@""] && shouldRemoveImage) {
-                    NSString* filePath = [NSString stringWithFormat:@"%@/%@", kHistoryImagesPath, [item imageName]];
-                    [_fileManager removeItemAtPath:filePath error:nil];
-                }
-
-                break;
-            }
+        // Avoid committing a stale snapshot after a long image encoding step.
+        if (_pasteboard.changeCount != generation) {
+            for (NSString *path in newFiles) [[NSFileManager defaultManager] removeItemAtPath:path error:NULL];
+            [self pullPasteboardChanges];
+            return;
         }
+        _lastChangeCount = generation;
+        _receivedInitialChange = YES;
+        if (records.count) [_historyStore addRecords:records toKey:kHistoryKeyHistory limit:limit];
     }
-
-    json[historyKey] = history;
-
-    [self setJsonFromDictionary:json];
 }
 
-/**
- * Updates the pasteboard with an item's content.
- *
- * @param item The item from which to set the content from.
- * @param historyKey The key for the history which the item is from.
- * @param shouldAutoPaste Whether the helper should automatically paste the new content.
- */
-- (void)updatePasteboardWithItem:(PasteboardItem *)item fromHistoryWithKey:(NSString *)historyKey shouldAutoPaste:(BOOL)shouldAutoPaste {
-    [_pasteboard setString:@""];
+- (void)addPasteboardItem:(PasteboardItem *)item toHistoryWithKey:(NSString *)key {
+    NSDictionary *record = [self recordForItem:item];
+    if (record) [_historyStore addRecords:@[record] toKey:[key copy] limit:MIN(self.maximumHistoryAmount, (NSUInteger)10000)];
+}
 
-    if (![[item imageName] isEqualToString:@""]) {
-        NSString* filePath = [NSString stringWithFormat:@"%@/%@", kHistoryImagesPath, [item imageName]];
-        UIImage* image = [UIImage imageWithContentsOfFile:filePath];
+- (void)removePasteboardItem:(PasteboardItem *)item fromHistoryWithKey:(NSString *)key shouldRemoveImage:(BOOL)removeImage {
+    if (item.content.length) [_historyStore removeContent:[item.content copy] fromKey:[key copy] removeImage:removeImage];
+}
+
+- (BOOL)writeRecordToPasteboard:(NSDictionary *)record {
+    NSAssert(!NSThread.isMainThread, @"Clipboard writes must not run on main");
+    if (!_pasteboard) _pasteboard = UIPasteboard.generalPasteboard;
+    NSString *imageName = record[kItemKeyImageName];
+    if (imageName.length) {
+        if (![imageName.lastPathComponent isEqualToString:imageName]) return NO;
+        UIImage *image = [UIImage imageWithContentsOfFile:[kHistoryImagesPath stringByAppendingPathComponent:imageName]];
+        if (!image) return NO; // leave clipboard/history untouched if image missing
         [_pasteboard setImage:image];
     } else {
-        [_pasteboard setString:[item content]];
+        NSString *text = record[kItemKeyContent];
+        if (!text.length) return NO;
+        [_pasteboard setString:text];
     }
-
-    // The pasteboard updates with the given item, which triggers an update event.
-    // Therefore we remove the given item to prevent duplicates.
-    [self removePasteboardItem:item fromHistoryWithKey:historyKey shouldRemoveImage:YES];
-
-    // Automatic paste should not occur for asynchronous operations.
-    if ([self automaticallyPaste] && shouldAutoPaste) {
-        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyHelperPaste, nil, nil, YES);
-    }
+    // Do not read a fresh changeCount and label it as our write: an external
+    // copy can race this setter. Capture/dedup handles our notification safely.
+    return YES;
 }
 
-/**
- * Returns all items from a specified history.
- *
- * @param historyKey The key for the history from which to get the items from.
- *
- * @return The history's items.
- */
-- (NSMutableArray *)getItemsFromHistoryWithKey:(NSString *)historyKey {
-    NSDictionary* json = [self getJson];
-    return json[historyKey] ?: [[NSMutableArray alloc] init];
+- (void)updatePasteboardWithItem:(PasteboardItem *)item fromHistoryWithKey:(NSString *)key shouldAutoPaste:(BOOL)autoPaste {
+    NSDictionary *record = [self recordForItem:item];
+    if (!record) return;
+    BOOL requestPaste = self.automaticallyPaste && autoPaste;
+    NSUInteger limit = MIN(self.maximumHistoryAmount, (NSUInteger)10000);
+    NSString *historyKey = [key copy];
+    CFAbsoluteTime requestedAt = CFAbsoluteTimeGetCurrent();
+    [_clipboardExecutor submitWrite:^{
+        if (CFAbsoluteTimeGetCurrent() - requestedAt > 2.0) {
+            NSLog(@"[KayokoClipboard] dropped stale queued clipboard write");
+            return;
+        }
+        if (![self writeRecordToPasteboard:record]) return;
+        // Keep source history/favorites and image. Deduplication of the resulting
+        // capture is storage-only and cannot cause another clipboard write.
+        if ([historyKey isEqualToString:kHistoryKeyHistory])
+            [self->_historyStore addRecords:@[record] toKey:kHistoryKeyHistory limit:limit];
+        if (requestPaste && self.automaticallyPaste && CFAbsoluteTimeGetCurrent() - requestedAt <= 2.0) CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+            (CFStringRef)kNotificationKeyHelperPaste, NULL, NULL, YES);
+    }];
 }
 
-/**
- * Returns the latest item from the default history.
- *
- * @return The item.
- */
+- (void)prepareForPasteWithCompletion:(void (^)(BOOL))completion {
+    // Helper's manual/automatic paste used to call string/image synchronously on
+    // the App main thread. This shares the same bounded background executor.
+    CFAbsoluteTime requestedAt = CFAbsoluteTimeGetCurrent();
+    [_clipboardExecutor submitWrite:^{
+        BOOL ready = NO;
+        @try {
+            if (CFAbsoluteTimeGetCurrent() - requestedAt > 2.0) return;
+            if (!self->_pasteboard) self->_pasteboard = UIPasteboard.generalPasteboard;
+            ready = self->_pasteboard.hasStrings || self->_pasteboard.hasImages;
+            if (!ready) {
+                NSDictionary *record = [[self->_historyStore snapshotForKey:kHistoryKeyHistory] firstObject];
+                ready = record && [self writeRecordToPasteboard:record];
+            }
+        } @catch (NSException *exception) {
+            NSLog(@"[KayokoClipboard] paste preparation failed (%@)", exception.name);
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(ready); });
+    }];
+}
+
+- (NSMutableArray *)getItemsFromHistoryWithKey:(NSString *)key {
+    // No file reads, JSON decoding, or synchronous queue waits in UI callbacks.
+    return [[_historyStore snapshotForKey:key] mutableCopy];
+}
+
 - (PasteboardItem *)getLatestHistoryItem {
-    NSArray* history = [self getItemsFromHistoryWithKey:kHistoryKeyHistory];
-    return [PasteboardItem itemFromDictionary:[history firstObject] ?: nil];
+    NSDictionary *record = [[_historyStore snapshotForKey:kHistoryKeyHistory] firstObject];
+    return record ? [PasteboardItem itemFromDictionary:record] : nil;
 }
 
-/**
- * Returns the image for an item.
- *
- * @param item The item from which to get the image from.
- *
- * @return The image.
- */
 - (UIImage *)getImageForItem:(PasteboardItem *)item {
-    NSData* imageData = [_fileManager contentsAtPath:[NSString stringWithFormat:@"%@/%@", kHistoryImagesPath, [item imageName]]];
-    return [UIImage imageWithData:imageData];
-}
-
-/**
- * Creates and returns a dictionary from the json containing the histories.
- *
- * @return The dictionary.
- */
-- (NSMutableDictionary *)getJson {
-    [self ensureResourcesExist];
-
-    NSData* jsonData = [NSData dataWithContentsOfFile:kHistoryPath];
-    NSMutableDictionary* json = [NSJSONSerialization JSONObjectWithData:jsonData options:NSJSONReadingMutableContainers error:nil];
-
-    return json;
-}
-
-/**
- * Stores the contents from a dictionary to a json file.
- *
- * @param dictionary The dictionary from which to save the contents from.
- */
-- (void)setJsonFromDictionary:(NSMutableDictionary *)dictionary {
-    NSData* jsonData = [NSJSONSerialization dataWithJSONObject:dictionary options:NSJSONWritingPrettyPrinted error:nil];
-    [jsonData writeToFile:kHistoryPath atomically:YES];
-
-    // Tell the core to reload the history view.
-    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreReload, nil, nil, YES);
-}
-
-/**
- * Creates the json for the histories and path for the images.
- */
-- (void)ensureResourcesExist {
-    BOOL isDirectory;
-    if (![_fileManager fileExistsAtPath:kHistoryImagesPath isDirectory:&isDirectory]) {
-        [_fileManager createDirectoryAtPath:kHistoryImagesPath withIntermediateDirectories:YES attributes:nil error:nil];
-    }
-
-    if (![_fileManager fileExistsAtPath:kHistoryPath]) {
-        NSData* jsonData = [NSJSONSerialization dataWithJSONObject:[[NSMutableDictionary alloc] init] options:NSJSONWritingPrettyPrinted error:nil];
-        [jsonData writeToFile:kHistoryPath options:NSDataWritingAtomic error:nil];
-    }
+    NSString *name = item.imageName;
+    if (!name.length || ![name.lastPathComponent isEqualToString:name]) return nil;
+    return [UIImage imageWithContentsOfFile:[kHistoryImagesPath stringByAppendingPathComponent:name]];
 }
 @end

@@ -14,6 +14,14 @@
             <key>extension_class</key>
             <string>com.apple.app-sandbox.read-write</string>
             <key>path</key>
+            <string>/var/mobile/Library/codes.aurora.kayoko</string>
+        </dict>
+        <dict>
+            <key>type</key>
+            <string>file</string>
+            <key>extension_class</key>
+            <string>com.apple.app-sandbox.read-write</string>
+            <key>path</key>
             <string>/var/mobile/Library/Preferences/codes.aurora.kayoko.preferences.plist</string>
         </dict>
     </array>

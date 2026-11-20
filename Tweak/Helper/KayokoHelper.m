@@ -17,6 +17,8 @@
 
 static void load_preferences(void);
 static void kayoko_helper_install_activation_hooks(void);
+static NSUInteger kayokoPasteRequestSerial;
+static NSUInteger kayokoFocusGeneration;
 
 #pragma mark - UIKeyboardAutocorrectionController class hooks
 
@@ -94,7 +96,8 @@ static void override_UIPredictionViewController_predictionView_didSelectCandidat
                 NSString* text = [delegateManager textInRange:range];
 
                 if (![text isEqualToString:@""]) {
-                    [[UIPasteboard generalPasteboard] setString:text];
+                    PasteboardItem *item = [[PasteboardItem alloc] initWithBundleIdentifier:NSBundle.mainBundle.bundleIdentifier andContent:[text copy] withImageNamed:nil];
+                    [[PasteboardManager sharedInstance] updatePasteboardWithItem:item fromHistoryWithKey:nil shouldAutoPaste:NO];
                 }
             } else {
                 id delegate = [[objc_getClass("UIKeyboardImpl") activeInstance] inputDelegate];
@@ -102,7 +105,8 @@ static void override_UIPredictionViewController_predictionView_didSelectCandidat
                 NSString* text = [delegate textInRange:range];
 
                 if (![text isEqualToString:@""]) {
-                    [[UIPasteboard generalPasteboard] setString:text];
+                    PasteboardItem *item = [[PasteboardItem alloc] initWithBundleIdentifier:NSBundle.mainBundle.bundleIdentifier andContent:[text copy] withImageNamed:nil];
+                    [[PasteboardManager sharedInstance] updatePasteboardWithItem:item fromHistoryWithKey:nil shouldAutoPaste:NO];
                 }
             }
         } else if ([[candidate label] isEqualToString:@"粘贴"]) {
@@ -206,6 +210,8 @@ static void (* orig_UIKeyboardImpl_applicationWillResignActive)(UIKeyboardImpl* 
 static void override_UIKeyboardImpl_applicationWillResignActive(UIKeyboardImpl* self, SEL _cmd, BOOL willResignActive) {
     orig_UIKeyboardImpl_applicationWillResignActive(self, _cmd, willResignActive);
     applicationIsInForeground = NO;
+    ++kayokoFocusGeneration;
+    ++kayokoPasteRequestSerial;
 }
 
 #pragma mark - Notification callbacks
@@ -214,33 +220,26 @@ static void override_UIKeyboardImpl_applicationWillResignActive(UIKeyboardImpl* 
  * Pastes the last copied item from the history.
  */
 static void paste() {
-    if (!applicationIsInForeground || !pfEnabled) {
-        return;
-    }
-
-    UIPasteboard* pasteboard = [UIPasteboard generalPasteboard];
-
-    // Get the latest copied item if the pasteboard cleared itself.
-    // The pasteboard clears itself after inactivity.
-    if (![pasteboard string] && ![pasteboard image]) {
-        PasteboardItem* item = [[PasteboardManager sharedInstance] getLatestHistoryItem];
-        if (!item) {
-            return;
-        }
-
-        if (![[item imageName] isEqualToString:@""]) {
-            [pasteboard setImage:[[PasteboardManager sharedInstance] getImageForItem:item]];
-        } else {
-            [pasteboard setString:[item content]];
-        }
-    }
-
-    [[UIApplication sharedApplication] sendAction:@selector(paste:) to:nil from:nil forEvent:nil];
+    if (!applicationIsInForeground || !pfEnabled) return;
+    NSUInteger request = ++kayokoPasteRequestSerial;
+    NSUInteger focus = kayokoFocusGeneration;
+    CFAbsoluteTime started = CFAbsoluteTimeGetCurrent();
+    UIKeyboardImpl *keyboard = [objc_getClass("UIKeyboardImpl") activeInstance];
+    id input = keyboard.inputDelegate;
+    [[PasteboardManager sharedInstance] prepareForPasteWithCompletion:^(BOOL ready) {
+        if (!ready || !pfEnabled || !applicationIsInForeground || request != kayokoPasteRequestSerial || focus != kayokoFocusGeneration || CFAbsoluteTimeGetCurrent() - started > 2.0) return;
+        if ([objc_getClass("UIKeyboardImpl") activeInstance] != keyboard || keyboard.inputDelegate != input) return;
+        [[UIApplication sharedApplication] sendAction:@selector(paste:) to:nil from:nil forEvent:nil];
+    }];
 }
 
 static void kayoko_helper_paste_requested(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (pfAutomaticallyPaste) paste();
+        // The Core posts only after its single clipboard write has returned.
+        // Do not probe or restore the clipboard again on the App's main thread.
+        ++kayokoPasteRequestSerial;
+        if (pfAutomaticallyPaste && pfEnabled && applicationIsInForeground)
+            [[UIApplication sharedApplication] sendAction:@selector(paste:) to:nil from:nil forEvent:nil];
     });
 }
 
@@ -270,12 +269,16 @@ static UIView* override_UIWindow_hitTest(UIWindow* self, SEL _cmd, CGPoint point
     return result;
 }
 
+static void kayoko_helper_history_changed(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
+    [[PasteboardManager sharedInstance] reloadHistoryAsync];
+}
+
 static void kayoko_helper_panel_did_show(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
-    kayokoPanelVisible = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{ kayokoPanelVisible = YES; });
 }
 
 static void kayoko_helper_panel_did_hide(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
-    kayokoPanelVisible = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{ kayokoPanelVisible = NO; });
 }
 
 #pragma mark - Preferences
@@ -393,6 +396,8 @@ __attribute((constructor)) static void initialize() {
     MSHookMessageEx(objc_getClass("UIKeyboardImpl"), @selector(applicationDidBecomeActive:), (IMP)&override_UIKeyboardImpl_applicationDidBecomeActive, (IMP *)&orig_UIKeyboardImpl_applicationDidBecomeActive);
     MSHookMessageEx(objc_getClass("UIKeyboardImpl"), @selector(applicationWillResignActive:), (IMP)&override_UIKeyboardImpl_applicationWillResignActive, (IMP *)&orig_UIKeyboardImpl_applicationWillResignActive);
 
+    [[PasteboardManager sharedInstance] reloadHistoryAsync];
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, kayoko_helper_history_changed, (CFStringRef)kNotificationKeyCoreReload, NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, kayoko_helper_paste_requested, (CFStringRef)kNotificationKeyHelperPaste, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, kayoko_helper_preferences_changed, (CFStringRef)kNotificationKeyPreferencesReload, NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
 }

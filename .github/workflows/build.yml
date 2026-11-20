@@ -45,6 +45,24 @@ jobs:
           xcrun clang -fobjc-arc -framework Foundation -framework CoreGraphics ci/TapOutsideTests.m -o "$RUNNER_TEMP/kayoko-tapoutside-tests"
           "$RUNNER_TEMP/kayoko-tapoutside-tests"
 
+      - name: Check bounded clipboard executor
+        timeout-minutes: 2
+        run: |
+          xcrun clang -fobjc-arc -framework Foundation ci/ClipboardExecutorTests.m Manager/KayokoClipboardExecutor.m -o "$RUNNER_TEMP/kayoko-executor-tests"
+          "$RUNNER_TEMP/kayoko-executor-tests"
+
+      - name: Check asynchronous history store
+        timeout-minutes: 2
+        run: |
+          xcrun clang -fobjc-arc -framework Foundation ci/HistoryStoreTests.m Manager/KayokoHistoryStore.m -o "$RUNNER_TEMP/kayoko-history-tests"
+          "$RUNNER_TEMP/kayoko-history-tests"
+
+      - name: Check manager with stalled clipboard provider
+        timeout-minutes: 2
+        run: |
+          xcrun clang -fobjc-arc -Ici/stubs -framework Foundation -framework CoreGraphics ci/ClipboardManagerTests.m Manager/PasteboardManager.m Manager/PasteboardItem.m Manager/KayokoHistoryStore.m Manager/KayokoClipboardExecutor.m -o "$RUNNER_TEMP/kayoko-manager-tests"
+          "$RUNNER_TEMP/kayoko-manager-tests"
+
       - name: Bump Package Version
         id: bump
         run: |

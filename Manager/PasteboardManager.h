@@ -14,18 +14,21 @@
 #define kHistoryImagesPath ROOT_PATH_NS(@"/var/mobile/Library/codes.aurora.kayoko/images/")
 static NSString* const kHistoryKeyHistory = @"history";
 static NSString* const kHistoryKeyFavorites = @"favorites";
+static NSString* const KayokoHistoryDidChangeNotification = @"KayokoHistoryDidChangeNotification";
 
 @interface PasteboardManager : NSObject {
+    // Accessed exclusively by the clipboard executor, never the UI thread.
     UIPasteboard* _pasteboard;
     NSUInteger _lastChangeCount;
-    NSFileManager* _fileManager;
 }
-@property(nonatomic, assign)NSUInteger maximumHistoryAmount;
-@property(nonatomic, assign)BOOL saveText;
-@property(nonatomic, assign)BOOL saveImages;
-@property(nonatomic, assign)BOOL automaticallyPaste;
+@property(atomic, assign)NSUInteger maximumHistoryAmount;
+@property(atomic, assign)BOOL saveText;
+@property(atomic, assign)BOOL saveImages;
+@property(atomic, assign)BOOL automaticallyPaste;
 + (instancetype)sharedInstance;
 - (void)pullPasteboardChanges;
+- (void)reloadHistoryAsync;
+- (void)prepareForPasteWithCompletion:(void (^)(BOOL ready))completion;
 - (void)addPasteboardItem:(PasteboardItem *)item toHistoryWithKey:(NSString *)historyKey;
 - (void)updatePasteboardWithItem:(PasteboardItem *)item fromHistoryWithKey:(NSString *)historyKey shouldAutoPaste:(BOOL)shouldAutoPaste;
 - (void)removePasteboardItem:(PasteboardItem *)item fromHistoryWithKey:(NSString *)historyKey shouldRemoveImage:(BOOL)shouldRemoveImage;

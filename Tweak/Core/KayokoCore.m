@@ -130,6 +130,10 @@ static void install_squid_compatibility_hook(NSUInteger attempt) {
  * Hides the history.
  */
 static void hide() {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{ hide(); });
+        return;
+    }
     if (CFAbsoluteTimeGetCurrent() < squidShowSuppressHideUntil) {
         return;
     }
@@ -206,9 +210,7 @@ static void install_tap_outside_to_dismiss_hooks(void) {
  * Reloads the history.
  */
 static void reload() {
-    if (kayokoView && ![kayokoView isHidden]) {
-        [kayokoView reload];
-    }
+    [[PasteboardManager sharedInstance] reloadHistoryAsync];
 }
 
 #pragma mark - Preferences
@@ -217,6 +219,10 @@ static void reload() {
  * Loads the user's preferences.
  */
 static void load_preferences() {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{ load_preferences(); });
+        return;
+    }
     preferences = [[NSUserDefaults alloc] initWithSuiteName:kPreferencesIdentifier];
 
     [preferences registerDefaults:@{
@@ -270,6 +276,9 @@ __attribute((constructor)) static void initialize() {
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)reload, (CFStringRef)kNotificationKeyCoreReload, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)load_preferences, (CFStringRef)kNotificationKeyPreferencesReload, NULL, (CFNotificationSuspensionBehavior)kNilOptions);
 
+    [[NSNotificationCenter defaultCenter] addObserverForName:KayokoHistoryDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+        if (kayokoView && !kayokoView.hidden) [kayokoView reload];
+    }];
     install_tap_outside_to_dismiss_hooks();
     install_squid_compatibility_hook(0);
 }
