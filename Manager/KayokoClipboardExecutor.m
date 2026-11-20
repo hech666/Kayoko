@@ -77,6 +77,7 @@ static void KayokoArmStallTimer(dispatch_source_t timer, uint64_t delayNanos) {
     BOOL needsDrain = !_draining;
     _draining = YES;
     [_lock unlock];
+    (void)displaced; // precise lifetime releases captured state only after unlocking
 
     if (needsDrain) {
         dispatch_async(_workQueue, ^{
