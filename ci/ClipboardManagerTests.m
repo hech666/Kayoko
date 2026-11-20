@@ -13,8 +13,10 @@ static NSUInteger creations, stringReads, stringWrites;
 static NSString *storedText;
 static BOOL Pump(BOOL (^condition)(void), NSTimeInterval timeout) {
     NSDate *until = [NSDate dateWithTimeIntervalSinceNow:timeout];
-    while (!condition() && until.timeIntervalSinceNow > 0)
+    while (until.timeIntervalSinceNow > 0) {
+        if (condition()) return YES;
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
+    }
     return condition();
 }
 @implementation UIApplication
