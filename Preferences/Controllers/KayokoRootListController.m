@@ -8,7 +8,6 @@
 #include "KayokoRootListController.h"
 #import <rootless.h>
 #import <Preferences/PSSpecifier.h>
-#import "../../Manager/PasteboardManager.h"
 #import "../PreferenceKeys.h"
 #import "../NotificationKeys.h"
 

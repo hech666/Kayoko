@@ -33,9 +33,9 @@ clang \
   Tweak/Core/Views/KayokoPreviewView.m \
   Manager/PasteboardManager.m \
   Manager/PasteboardItem.m \
-  Utils/AlertUtil.m \
+  Manager/KayokoClipboardExecutor.m \
+  Manager/KayokoHistoryStore.m \
   Utils/ImageUtil.m \
-  Utils/StringUtil.m \
   ${CFLAGS} ${LDFLAGS} -DAPELIN_BUILD_ID=\""${BUILD_ID}"\" \
   -framework UIKit -framework CoreGraphics -framework QuartzCore -framework WebKit \
   -lsubstrate -lroothide \
@@ -52,9 +52,9 @@ clang \
   Tweak/Helper/KayokoHelper.m \
   Manager/PasteboardManager.m \
   Manager/PasteboardItem.m \
-  Utils/AlertUtil.m \
+  Manager/KayokoClipboardExecutor.m \
+  Manager/KayokoHistoryStore.m \
   Utils/ImageUtil.m \
-  Utils/StringUtil.m \
   ${CFLAGS} ${LDFLAGS} -DAPELIN_BUILD_ID=\""${BUILD_ID}"\" \
   -framework UIKit -framework CoreGraphics \
   -lsandy -lsubstrate -lroothide \
@@ -88,11 +88,6 @@ clang \
   Preferences/Controllers/KayokoCreditsListController.m \
   Preferences/Cells/LinkCell.m \
   Preferences/Cells/SingleContactCell.m \
-  Manager/PasteboardManager.m \
-  Manager/PasteboardItem.m \
-  Utils/AlertUtil.m \
-  Utils/ImageUtil.m \
-  Utils/StringUtil.m \
   ${CFLAGS} ${LDFLAGS} \
   -framework UIKit -framework CoreGraphics \
   -framework Preferences \

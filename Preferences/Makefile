@@ -1,5 +1,6 @@
 BUNDLE_NAME = KayokoPreferences
-KayokoPreferences_FILES = $(wildcard Controllers/*.m Cells/*.m ../Manager/*.m) $(wildcard ../Utils/*.m)
+# Settings only needs its controllers/cells; clipboard services run in the tweaks.
+KayokoPreferences_FILES = $(wildcard Controllers/*.m Cells/*.m)
 KayokoPreferences_FRAMEWORKS = UIKit
 KayokoPreferences_PRIVATE_FRAMEWORKS = Preferences
 KayokoPreferences_INSTALL_PATH = /Library/PreferenceBundles
