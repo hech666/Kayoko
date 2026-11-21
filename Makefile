@@ -1,4 +1,4 @@
-export ARCHS = arm64 arm64e
+export ARCHS = arm64e
 export TARGET = iphone:clang:16.5:15.0
 ifeq ($(THEOS_PACKAGE_SCHEME),roothide)
 export ADDITIONAL_LDFLAGS += -lroothide

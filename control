@@ -2,7 +2,7 @@ Package: codes.aurora.kayoko
 Name: Kayoko
 Version: 2.0
 Architecture: iphoneos-arm64e
-Description: iOS 剪贴板管理器。
+Description: iOS 剪贴板管理器（arm64e单架构）。
 Maintainer: Alexandra Aurora Göttlicher
 Author: Alexandra Aurora Göttlicher
 Section: Tweaks
