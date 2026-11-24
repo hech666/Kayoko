@@ -340,6 +340,7 @@
     } completion:^(BOOL finished) {
         [viewToHide setHidden:YES];
         _isAnimating = NO;
+        if (_hideRequested) [self hide];
     }];
 }
 
@@ -393,6 +394,7 @@
         [self setAlpha:1];
     } completion:^(BOOL finished) {
         _isAnimating = NO;
+        if (_hideRequested) [self hide];
     }];
 }
 
@@ -401,17 +403,24 @@
  */
 - (void)hide {
     if (_isAnimating) {
+        _hideRequested = YES;
+        return;
+    }
+    if (self.isHidden) {
+        _hideRequested = NO;
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyPanelDidHide, nil, nil, YES);
         return;
     }
 
+    _hideRequested = NO;
     _isAnimating = YES;
     [UIView animateWithDuration:0.2 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:UIViewAnimationOptionCurveEaseOut animations:^{
         [self setAlpha:0];
     } completion:^(BOOL finished) {
         [self setHidden:YES];
         _isAnimating = NO;
+        _hideRequested = NO;
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyPanelDidHide, nil, nil, YES);
     }];
-
-    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyPanelDidHide, nil, nil, YES);
 }
 @end

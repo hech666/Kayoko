@@ -8,6 +8,8 @@
 static NSString* const kNotificationKeyObserverPasteboardChanged = @"codes.aurora.kayokod.pasteboard.changed";
 static NSString* const kNotificationKeyCoreShow = @"codes.aurora.kayoko.core.show";
 static NSString* const kNotificationKeyCoreHide = @"codes.aurora.kayoko.core.hide";
+// Explicit outside-tap dismiss must not be swallowed by the keyboard/Squid guard.
+static NSString* const kNotificationKeyCoreHideOutside = @"codes.aurora.kayoko.core.hide.outside";
 // Compatibility with the original Kayoko bundle identifier.
 static NSString* const kNotificationKeyLegacyCoreShow = @"dev.traurige.kayoko.core.show";
 static NSString* const kNotificationKeyLegacyCoreHide = @"dev.traurige.kayoko.core.hide";

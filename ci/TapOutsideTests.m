@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
-#include <stdbool.h>
+#include "../Tweak/Helper/KayokoAppTouchPolicy.h"
 
 static NSUInteger checks;
 #define CHECK(x) do { checks++; if (!(x)) { NSLog(@"FAIL line %d: %s", __LINE__, #x); exit(1); } } while (0)
@@ -31,6 +31,21 @@ int main(void) {
     CHECK(KayokoTapOutsideShouldDismiss(panel, CGPointMake(392, CGRectGetMidY(panel))));
     // Point below the panel dismisses.
     CHECK(KayokoTapOutsideShouldDismiss(panel, CGPointMake(CGRectGetMidX(panel), 851)));
+
+    // Regression: a stale App-side visibility hint must be one-shot and must
+    // never cause repeated hitTest calls to suppress the original hit result.
+    KayokoAppTouchState touchState = { true };
+    CHECK(KayokoAppTouchRequestHide(&touchState, true, true, true));
+    CHECK(!touchState.panelVisible);
+    CHECK(!KayokoAppTouchRequestHide(&touchState, true, true, true));
+    KayokoAppTouchDidShow(&touchState, true, true);
+    CHECK(!KayokoAppTouchRequestHide(&touchState, true, true, false));
+    CHECK(touchState.panelVisible);
+    CHECK(!KayokoAppTouchRequestHide(&touchState, false, true, true));
+    CHECK(!touchState.panelVisible);
+    KayokoAppTouchDidShow(&touchState, true, true);
+    CHECK(!KayokoAppTouchRequestHide(&touchState, true, false, true));
+    CHECK(!touchState.panelVisible);
 
     // The panel height constant must be positive and sane.
     CHECK(kKayokoPanelHeight > 0 && kKayokoPanelHeight < bounds.size.height);

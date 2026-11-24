@@ -6,6 +6,7 @@
 //
 
 #import "KayokoHelper.h"
+#import "KayokoAppTouchPolicy.h"
 #import <substrate.h>
 #import <libSandy.h>
 #import "../../Manager/PasteboardManager.h"
@@ -19,6 +20,15 @@ static void load_preferences(void);
 static void kayoko_helper_install_activation_hooks(void);
 static NSUInteger kayokoPasteRequestSerial;
 static NSUInteger kayokoFocusGeneration;
+// Main-thread state only; never use a Darwin visibility hint to reject App touches.
+static KayokoAppTouchState kayokoTouchState;
+static void kayoko_helper_reset_panel_state(void) {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{ kayoko_helper_reset_panel_state(); });
+        return;
+    }
+    KayokoAppTouchReset(&kayokoTouchState);
+}
 
 #pragma mark - UIKeyboardAutocorrectionController class hooks
 
@@ -210,6 +220,7 @@ static void (* orig_UIKeyboardImpl_applicationWillResignActive)(UIKeyboardImpl* 
 static void override_UIKeyboardImpl_applicationWillResignActive(UIKeyboardImpl* self, SEL _cmd, BOOL willResignActive) {
     orig_UIKeyboardImpl_applicationWillResignActive(self, _cmd, willResignActive);
     applicationIsInForeground = NO;
+    kayoko_helper_reset_panel_state();
     ++kayokoFocusGeneration;
     ++kayokoPasteRequestSerial;
 }
@@ -245,25 +256,27 @@ static void kayoko_helper_paste_requested(CFNotificationCenterRef center, void *
 
 #pragma mark - Tap outside to dismiss
 
-static BOOL kayokoPanelVisible;
-
 /**
- * Dismisses the panel when a touch lands outside of it.
- *
- * The panel is hosted by SpringBoard's UIStatusBarWindow. When a third party app
- * is in the foreground and the status bar window lets the touch through, the app's
- * own key window receives it here. We post the hide notification and swallow the
- * touch so it doesn't interact with the app underneath.
+ * App-side visibility is only a hint: Darwin notifications can be missed while
+ * an App is suspended. Consume at most the current outside tap as the dismiss
+ * gesture; clear the hint before notifying Core, so later taps always reach the
+ * App even if the hint is stale or the acknowledgement is missed.
  */
 static UIView* (* orig_UIWindow_hitTest)(UIWindow* self, SEL _cmd, CGPoint point, UIEvent* event);
 static UIView* override_UIWindow_hitTest(UIWindow* self, SEL _cmd, CGPoint point, UIEvent* event) {
     UIView* result = orig_UIWindow_hitTest(self, _cmd, point, event);
-    if (kayokoPanelVisible && UIScreen.mainScreen) {
-        CGPoint pointInWindow = [self convertPoint:point toView:nil];
-        CGRect panelFrame = KayokoTapOutsidePanelFrame(UIScreen.mainScreen.bounds, kKayokoPanelHeight);
-        if (KayokoTapOutsideShouldDismiss(panelFrame, pointInWindow)) {
-            CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreHide, nil, nil, YES);
-            return nil;
+    if (kayokoTouchState.panelVisible) {
+        BOOL active = applicationIsInForeground && UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
+        UIScreen *screen = self.screen;
+        BOOL outside = NO;
+        if (screen == UIScreen.mainScreen) {
+            CGPoint screenPoint = [self convertPoint:point toCoordinateSpace:screen.coordinateSpace];
+            CGRect panelFrame = KayokoTapOutsidePanelFrame(screen.bounds, kKayokoPanelHeight);
+            outside = KayokoTapOutsideShouldDismiss(panelFrame, screenPoint);
+        }
+        if (KayokoAppTouchRequestHide(&kayokoTouchState, pfEnabled, active, outside)) {
+            CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreHideOutside, nil, nil, YES);
+            return nil; // Swallow this one dismiss gesture only; local state is already reset.
         }
     }
     return result;
@@ -274,11 +287,14 @@ static void kayoko_helper_history_changed(CFNotificationCenterRef center, void *
 }
 
 static void kayoko_helper_panel_did_show(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
-    dispatch_async(dispatch_get_main_queue(), ^{ kayokoPanelVisible = YES; });
+    dispatch_async(dispatch_get_main_queue(), ^{
+        BOOL active = applicationIsInForeground && UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
+        KayokoAppTouchDidShow(&kayokoTouchState, pfEnabled, active);
+    });
 }
 
 static void kayoko_helper_panel_did_hide(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef info) {
-    dispatch_async(dispatch_get_main_queue(), ^{ kayokoPanelVisible = NO; });
+    dispatch_async(dispatch_get_main_queue(), ^{ kayoko_helper_reset_panel_state(); });
 }
 
 #pragma mark - Preferences

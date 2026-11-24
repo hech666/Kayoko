@@ -22,6 +22,7 @@ static NSUInteger const kClearButtonImageSize = 20;
 @interface KayokoView : UIView {
     KayokoTableView* _previewSourceTableView;
     BOOL _isAnimating;
+    BOOL _hideRequested;
 }
 @property(nonatomic)UIBlurEffect* blurEffect;
 @property(nonatomic)UIVisualEffectView* blurEffectView;
