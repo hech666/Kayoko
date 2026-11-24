@@ -257,10 +257,9 @@ static void kayoko_helper_paste_requested(CFNotificationCenterRef center, void *
 #pragma mark - Tap outside to dismiss
 
 /**
- * App-side visibility is only a hint: Darwin notifications can be missed while
- * an App is suspended. Consume at most the current outside tap as the dismiss
- * gesture; clear the hint before notifying Core, so later taps always reach the
- * App even if the hint is stale or the acknowledgement is missed.
+ * App-side visibility is a hint and is cleared on the Core hide acknowledgement.
+ * Keep it set throughout the hide animation so repeated hitTest calls for the
+ * same outside tap cannot leak the dismissal gesture through to the App.
  */
 static UIView* (* orig_UIWindow_hitTest)(UIWindow* self, SEL _cmd, CGPoint point, UIEvent* event);
 static UIView* override_UIWindow_hitTest(UIWindow* self, SEL _cmd, CGPoint point, UIEvent* event) {
@@ -274,9 +273,12 @@ static UIView* override_UIWindow_hitTest(UIWindow* self, SEL _cmd, CGPoint point
             CGRect panelFrame = KayokoTapOutsidePanelFrame(screen.bounds, kKayokoPanelHeight);
             outside = KayokoTapOutsideShouldDismiss(panelFrame, screenPoint);
         }
-        if (KayokoAppTouchRequestHide(&kayokoTouchState, pfEnabled, active, outside)) {
+        KayokoAppTouchDecision decision = KayokoAppTouchRequestHide(&kayokoTouchState, pfEnabled, active, outside);
+        if (decision == KayokoAppTouchDismiss) {
             CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)kNotificationKeyCoreHideOutside, nil, nil, YES);
-            return nil; // Swallow this one dismiss gesture only; local state is already reset.
+        }
+        if (decision != KayokoAppTouchPass) {
+            return nil; // Consume outside touches until Core confirms the panel is hidden.
         }
     }
     return result;

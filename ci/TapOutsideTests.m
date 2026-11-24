@@ -32,15 +32,19 @@ int main(void) {
     // Point below the panel dismisses.
     CHECK(KayokoTapOutsideShouldDismiss(panel, CGPointMake(CGRectGetMidX(panel), 851)));
 
-    // Regression: a stale App-side visibility hint must be one-shot and must
-    // never cause repeated hitTest calls to suppress the original hit result.
+    // Regression: after requesting dismissal, keep suppressing outside hitTests
+    // until Core acknowledges the hide. This prevents the same tap from reaching
+    // the app and dismissing its keyboard.
     KayokoAppTouchState touchState = { true };
     CHECK(KayokoAppTouchRequestHide(&touchState, true, true, true));
+    CHECK(touchState.panelVisible);
+    CHECK(KayokoAppTouchRequestHide(&touchState, true, true, true));
+    CHECK(!KayokoAppTouchRequestHide(&touchState, true, true, false));
+    CHECK(touchState.panelVisible);
+    KayokoAppTouchReset(&touchState); // Core hide acknowledgement.
     CHECK(!touchState.panelVisible);
     CHECK(!KayokoAppTouchRequestHide(&touchState, true, true, true));
     KayokoAppTouchDidShow(&touchState, true, true);
-    CHECK(!KayokoAppTouchRequestHide(&touchState, true, true, false));
-    CHECK(touchState.panelVisible);
     CHECK(!KayokoAppTouchRequestHide(&touchState, false, true, true));
     CHECK(!touchState.panelVisible);
     KayokoAppTouchDidShow(&touchState, true, true);

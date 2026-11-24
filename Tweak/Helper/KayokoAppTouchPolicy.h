@@ -1,33 +1,47 @@
-// App-side Darwin notifications are hints, not authority to block UIKit events.
-// Pure C so the exact policy used by the hook can be regression-tested on Linux.
+// The helper's visibility hint remains active until Core confirms the hide animation
+// has completed. This keeps repeated hitTest calls for the same dismiss tap from
+// leaking it through to the app (which can dismiss the active keyboard). A hidden,
+// inactive, or disabled session still clears the hint immediately.
 #ifndef KAYOKO_APP_TOUCH_POLICY_H
 #define KAYOKO_APP_TOUCH_POLICY_H
 #include <stdbool.h>
 
 typedef struct {
     bool panelVisible;
+    bool dismissPending;
 } KayokoAppTouchState;
+
+typedef enum {
+    KayokoAppTouchPass = 0,
+    KayokoAppTouchSuppress = 1,
+    KayokoAppTouchDismiss = 2
+} KayokoAppTouchDecision;
 
 static inline void KayokoAppTouchReset(KayokoAppTouchState *state) {
     state->panelVisible = false;
+    state->dismissPending = false;
 }
 
 static inline void KayokoAppTouchDidShow(KayokoAppTouchState *state,
                                         bool enabled, bool active) {
     state->panelVisible = enabled && active;
+    state->dismissPending = false;
 }
 
-// Hide request. The caller may consume this one outside tap to preserve the
-// dismiss gesture, but must not let the hint suppress subsequent hit tests.
-static inline bool KayokoAppTouchRequestHide(KayokoAppTouchState *state,
+static inline KayokoAppTouchDecision KayokoAppTouchRequestHide(
+                                            KayokoAppTouchState *state,
                                             bool enabled, bool active,
                                             bool outsidePanel) {
     if (!enabled || !active) {
         KayokoAppTouchReset(state);
-        return false;
+        return KayokoAppTouchPass;
     }
-    if (!state->panelVisible || !outsidePanel) return false;
-    KayokoAppTouchReset(state);
-    return true;
+    if (!state->panelVisible || !outsidePanel) return KayokoAppTouchPass;
+    if (state->dismissPending) return KayokoAppTouchSuppress;
+
+    // UIKit can ask multiple windows to hit-test the same touch. Keep consuming
+    // it until Core confirms dismissal, without repeatedly posting hide requests.
+    state->dismissPending = true;
+    return KayokoAppTouchDismiss;
 }
 #endif
